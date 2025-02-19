@@ -20,75 +20,14 @@ from pytorchfi.util import random_value
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
 
-import multiprocessing
+import logging
+import rl_utils as utils
+# SAVERS - save observations and states at each step
+from modifiers.saver import Saver
 
-from pytorchfi.util import def_logger_pfi
-logger=def_logger_pfi.getChild(__name__)
+logger=logging.getLogger("pytorchfi") 
+logger.setLevel(logging.DEBUG) 
 
-# _bf_inj_w_mask=0
-# _layer=0
-
-
-# def float_to_hex(f):
-#     h=hex(struct.unpack('<I', struct.pack('<f', f))[0])
-#     return h[2:len(h)]
-
-
-# def hex_to_float(h):
-#     return float(struct.unpack(">f",struct.pack(">I",int(h,16)))[0])
-
-# def int_to_float(h):
-#     return float(struct.unpack(">f",struct.pack(">I",h))[0])
-    
-
-
-# def _log_faults(Log_string):
-#     with open("./FSIM_logs/Fsim_log.log",'a+') as logfile:
-#         logfile.write(Log_string+'\n')
-
-# def bit_flip_weight_inj(pfi: core.FaultInjection, layer, k, c_in, kH, kW, inj_mask):
-#     global _bf_inj_w_mask
-#     global _layer
-#     _bf_inj_w_mask=inj_mask
-#     _layer=layer
-#     return pfi.declare_weight_fault_injection(
-#         function=_bit_flip_weight, layer_num=layer, k=k, dim1=c_in, dim2=kH, dim3=kW
-#     )
-
-# def _bit_flip_weight(data, location):
-#     orig_data=data[location].item()
-#     data_32bit=int(float_to_hex(data[location].item()),16)
-
-#     #print(_bf_inj_w_mask)
-
-#     corrupt_32bit=data_32bit ^ int(_bf_inj_w_mask[0])
-#     corrupt_val=int_to_float(corrupt_32bit)
-#     #print(data_32bit,_bf_inj_w_mask,corrupt_32bit, orig_data, corrupt_val)
-#     log_msg=f"F_descriptor: Layer:{_layer}, (K, C, H, W):{location}, BitMask:{_bf_inj_w_mask[0]}, Ffree_Weight:{data_32bit}, Faulty_weight:{corrupt_32bit}"
-#     logger.info(log_msg)
-#     _log_faults(log_msg)
-#     return corrupt_val
-
-#     # k, c, H, W
-
-        
-        
-    # def update_fault_dictionary(self,key,val):           
-    #     if self._layer not in self.fault_dictionary:
-    #         self.fault_dictionary[self._layer]={}            
-    #     if self._kK not in self.fault_dictionary[self._layer]:
-    #         self.fault_dictionary[self._layer][self._kK]={}
-    #     if self._kC not in  self.fault_dictionary[self._layer][self._kK]:
-    #         self.fault_dictionary[self._layer][self._kK][self._kC]={}
-    #     if self._kH not in  self.fault_dictionary[self._layer][self._kK][self._kC]:
-    #         self.fault_dictionary[self._layer][self._kK][self._kC][self._kH]={}
-    #     if self._kW not in  self.fault_dictionary[self._layer][self._kK][self._kC][self._kH]:                            
-    #         self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW]={}  
-    #     if self._inj_mask not in  self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW]:
-    #         self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW][self._inj_mask]={}
-    #     self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW][self._inj_mask][key]=val
-
-        # k, c, H, W
 def float_to_bin(f):
     h=hex(struct.unpack('<I', struct.pack('<f', f))[0])
     weight_bin_clean="{:032b}".format(int(h[2:len(h)],16))
@@ -105,7 +44,7 @@ def float_flip(f,pos,mode="01"):
         d=d
     return (float(struct.unpack(">f",struct.pack(">I",d))[0]))
 
-def weight_distribution(pfi_model:FaultInjection, **kwargs):    
+def weight_distribution(pfi_model:FaultInjection, **kwargs):   
     if kwargs:
         layer_num=kwargs.get('layer')
         path=kwargs.get('path')
@@ -151,7 +90,7 @@ def weight_distribution(pfi_model:FaultInjection, **kwargs):
                                         weight_bin_clean=float_to_bin(weight_value)
                                         for bitidx in range(0,32):
                                             if(int(weight_bin_clean[bitidx]) not in weight_distribution_dict):
-                                                weight_distribution_dict[int(weight_bin_clean[bitidx])][bitidx]=1
+                                                [int(weight_bin_clean[bitidx])][bitidx]=1
                                             else:
                                                 weight_distribution_dict[int(weight_bin_clean[bitidx])][bitidx]+=1
                                         
@@ -279,6 +218,7 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
             kK_param=kwargs.get('kernel')
             kC_param=kwargs.get('channel')
             num_faults=kwargs.get('num_faults')
+            bit_loc=kwargs.get('bit_loc')
             pfi_model.print_pytorchfi_layer_summary()            
             print(pfi_model.get_total_layers())
             if layer_param!= None:
@@ -309,6 +249,7 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
             #print(n)                
             i=0
             while i<n:
+
                 if kK_param != None:
                     k=kK_param
                 else:
@@ -323,10 +264,12 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
                 else:
                     h=None
                     w=None
-
-                mask=2**(random.randint(LSB_injection,MSB_inection))                
+                if bit_loc != None:
+                    mask = 2**(bit_loc)
+                else:
+                    mask=2**(random.randint(LSB_injection,MSB_inection))                
                 fault=[layr,k,c,h,w,mask]
-                if fault not in fault_list :
+                if fault not in fault_list:
                     fault_list.append(fault)
                     fault_dict={'layer':layr,'kernel':k,'channel':c,'row':h,'col':w,'bitmask':mask}
                     new_row=pd.DataFrame(fault_dict, index=[0])
@@ -693,7 +636,7 @@ def generate_error_list_neurons_tails(pfi_model:FaultInjection,layer_i=-1,layer_
 
 
 class FI_report_classifier(object):
-    def __init__(self,log_pah,chpt_file="chpt_file.json",fault_report_name="fsim_report.csv",) -> None:
+    def __init__(self,log_pah,chpt_file="chpt_file.json",fault_report_name="fsim_report.csv", episodes=0) -> None:
         self.chpt_file_name=chpt_file
         self.fault_report_filename=fault_report_name
         self._k=0
@@ -701,7 +644,7 @@ class FI_report_classifier(object):
         self._kH=0
         self._kW=0
         self._layer=0    
-        self._num_images=0
+        self._num_images=FI_manager
         self._gold_acc1=torch.tensor([0.0])
         self._gold_acck=torch.tensor([0.0])
         self.goldenf1_1=torch.tensor([0.0])
@@ -710,6 +653,22 @@ class FI_report_classifier(object):
         self._faul_acck=torch.tensor([0.0])
         self.fault_f1_1=torch.tensor([0.0])
         self.fault_f1_k=torch.tensor([0.0])
+        
+        # new parameters
+        self.G_reached_goal = torch.tensor([0.0])
+        self.F_reached_goal = torch.tensor([0.0])
+        self.G_max_steps = torch.tensor([0.0])
+        self.F_max_steps = torch.tensor([0.0])
+        self.G_collisions = torch.tensor([0.0])
+        self.F_collisions = torch.tensor([0.0])
+        self.G_tot_reward = torch.tensor([0.0])
+        self.F_tot_reward = torch.tensor([0.0])
+
+        self.G_tot_steps = torch.tensor([0.0])
+        self.F_tot_steps = torch.tensor([0.0])
+
+        self._num_episodes = episodes
+        #######
 
         self._report_dictionary={}
 
@@ -719,11 +678,11 @@ class FI_report_classifier(object):
 
         self._FI_results_dictionary={}
         self._fault_dictionary={}        
-        self.Top1_faulty_code=0
+        self.faulty_code=0
         self.Topk_faulty_code=0
-        self.T1_SDC=0
-        self.T1_Masked=0
-        self.T1_Critical=0
+        self.SDC=0
+        self.Masked=0
+        self.Critical=0
 
         self.T5_SDC=0
         self.T5_Masked=0
@@ -736,16 +695,23 @@ class FI_report_classifier(object):
         self.Critical_top5=0
         self.Masked_top1=0
         self.Masked_top5=0
-        self.Gacc1=0
-        self.Gacc5=0
-        self.Facc1=0
-        self.Facc5=0
 
         self.GACC1=torch.tensor([0.0])
         self.GACCk=torch.tensor([0.0])
         self.FACC1=torch.tensor([0.0])
         self.FACCk=torch.tensor([0.0])
-        self.Full_report=pd.DataFrame()
+
+        # new parameters
+        self.G_goal_prob = torch.tensor([0.0])
+        self.G_mean_reward = torch.tensor([0.0])
+        self.G_mean_steps = torch.tensor([0.0])
+
+        self.F_goal_prob = torch.tensor([0.0])
+        self.F_mean_reward = torch.tensor([0.0])
+        self.F_mean_steps = torch.tensor([0.0])
+        #######
+
+        self.Full_report=dict()
 
         self.Accm_SDC_top1=0
         self.Accm_SDC_top5=0
@@ -758,20 +724,8 @@ class FI_report_classifier(object):
         self._fsim_report=pd.DataFrame()
         self.check_point={
             "fault_idx":0,
-            "top1": {
-                "fault":{
-                        "Critical":0,
-                        "SDC":0,
-                        "Masked":0
-                        },
-                "images":{
-                        "Critical":0,
-                        "SDC":0,
-                        "Masked":0
-                        }
-            },
-            "topk": {
-                "fault":{
+            # "top1": {
+                "episodes":{
                         "Critical":0,
                         "SDC":0,
                         "Masked":0
@@ -782,7 +736,19 @@ class FI_report_classifier(object):
                         "Masked":0
                         }
             }
-        }
+            # "topk": {
+            #     "fault":{
+            #             "Critical":0,
+            #             "SDC":0,
+            #             "Masked":0
+            #             },
+            #     "images":{
+            #             "Critical":0,
+            #             "SDC":0,
+            #             "Masked":0
+            #             }
+            # }
+        # }
 
     def set_fault_report(self, data):
         for key in data:
@@ -799,11 +765,8 @@ class FI_report_classifier(object):
                 self.check_point=chpt
 
         if not os.path.exists(os.path.join(self.log_path,self.fault_report_filename)):
-            self._fsim_report=pd.DataFrame(columns=['gold_ACC@1','gold_ACC@k',
-                                        'img_Top1_Crit','img_Top1_SDC','img_Top1_Masked',
-                                        'img_Topk_Crit','img_Topk_SDC','img_Topk_Masked',
-                                        'fault_ACC@1','fault_ACC@k','Class_Top1','Class_Topk',
-                                        'goldenf1_1', 'fault_f1@1', 'goldenf1_k', 'fault_f1@k'])  
+            self._fsim_report=pd.DataFrame(columns=['golden_goal_prob', 'golden_mean_reward', 'golden_mean_steps', 'faulty_goal_prob', 
+                                                    'faulty_mean_reward', 'faulty_mean_steps', 'Masked_perc','SDC_perc', 'Critical_perc'])
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -813,12 +776,6 @@ class FI_report_classifier(object):
         self._update_chpt_info()
         self.update_fault_parse_results()
         self.reset_counter()
-        # fidx=self.check_point["fault_idx"]
-        # Report_name=f"FI_{fidx}_results.json"
-        # FI_report_json_file=os.path.join(self.log_path,Report_name)
-        # with open(FI_report_json_file,'w') as Golden_file:
-        #     json.dump(self._FI_results_dictionary,Golden_file)        
-        # self._FI_results_dictionary={}
 
         new_row=pd.DataFrame(self._fault_dictionary, index=[0])
         self._fsim_report=pd.concat([self._fsim_report, new_row],ignore_index=True, sort=False)
@@ -834,9 +791,6 @@ class FI_report_classifier(object):
         self.GACCk=torch.tensor([0.0])
         self.FACC1=torch.tensor([0.0])
         self.FACCk=torch.tensor([0.0])
-        self.T1_SDC=0
-        self.T1_Masked=0
-        self.T1_Critical=0
         self.T5_SDC=0
         self.T5_Masked=0
         self.T5_Critical=0
@@ -850,71 +804,123 @@ class FI_report_classifier(object):
         self.fault_f1_k=torch.tensor([0.0])
         self._num_images=0          
 
+        # new parameters
+        self.G_reached_goal = torch.tensor([0.0])
+        self.F_reached_goal = torch.tensor([0.0])
+        self.G_max_steps = torch.tensor([0.0])
+        self.F_max_steps = torch.tensor([0.0])
+        self.G_collisions = torch.tensor([0.0])
+        self.F_collisions = torch.tensor([0.0])
+        self.G_tot_reward = torch.tensor([0.0])
+        self.F_tot_reward = torch.tensor([0.0])
+        self.G_tot_steps = torch.tensor([0.0])
+        self.F_tot_steps = torch.tensor([0.0])
+        self.Masked=0
+        self.SDC=0
+        self.Critical=0
+
+        self.G_goal_prob = torch.tensor([0.0])
+        self.F_goal_prob = torch.tensor([0.0])
+        self.G_max_steps_prob = torch.tensor([0.0])
+        self.F_max_steps_prob = torch.tensor([0.0])
+        self.G_collision_prob = torch.tensor([0.0])
+        self.F_collision_prob = torch.tensor([0.0])
+        self.G_mean_reward = torch.tensor([0.0])
+        self.F_mean_reward = torch.tensor([0.0])
+        self.G_mean_steps = torch.tensor([0.0])
+        self.F_mean_steps = torch.tensor([0.0])
+        # self.Masked_perc = torch.tensor([0.0])
+        # self.SDC_perc=torch.tensor([0.0])
+        # self.Critical_perc=torch.tensor([0.0])
+        #########
+
     def _update_chpt_info(self):    
-        self.Top1_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
+        self.faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
         self.Topk_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
         self.check_point["fault_idx"]+=1 
 
-        self.check_point["top1"]["images"]["Critical"]+=self.T1_Critical
-        self.check_point["top1"]["images"]["SDC"]+=self.T1_SDC
-        self.check_point["top1"]["images"]["Masked"]+=self.T1_Masked
-        self.check_point["topk"]["images"]["Critical"]+=self.T5_Critical
-        self.check_point["topk"]["images"]["SDC"]+=self.T5_SDC
-        self.check_point["topk"]["images"]["Masked"]+=self.T5_Masked
+        self.check_point["episodes"]["Critical"]+=self.Critical
+        self.check_point["episodes"]["SDC"]+=self.SDC
+        self.check_point["episodes"]["Masked"]+=self.Masked
 
-        if(self.T1_Critical!=0):
+        # self.check_point["top1"]["images"]["Critical"]+=self.Critical
+        # self.check_point["top1"]["images"]["SDC"]+=self.SDC
+        # self.check_point["top1"]["images"]["Masked"]+=self.Masked
+        # self.check_point["topk"]["images"]["Critical"]+=self.T5_Critical
+        # self.check_point["topk"]["images"]["SDC"]+=self.T5_SDC
+        # self.check_point["topk"]["images"]["Masked"]+=self.T5_Masked
+
+        if(self.Critical!=0):
             # self.Critical_top1+=1
-            self.check_point["top1"]["fault"]["Critical"]+=1
-            self.Top1_faulty_code=2
-        elif self.T1_SDC !=0:
+            self.check_point["episodes"]["Critical"]+=1
+            self.faulty_code=2
+        elif self.SDC !=0:
             # self.SDC_top1+=1
-            self.check_point["top1"]["fault"]["SDC"]+=1
-            self.Top1_faulty_code=1
+            self.check_point["episodes"]["SDC"]+=1
+            self.faulty_code=1
         else:
             # self.Masked_top1+=1
-            self.check_point["top1"]["fault"]["Masked"]+=1
-            self.Top1_faulty_code=0
+            self.check_point["episodes"]["Masked"]+=1
+            self.faulty_code=0
 
-        if(self.T5_Critical!=0):
-            # self.Critical_top5+=1
-            self.check_point["topk"]["fault"]["Critical"]+=1
-            self.Topk_faulty_code=2
-        elif self.T5_SDC !=0:
-            # self.SDC_top5+=1
-            self.check_point["topk"]["fault"]["SDC"]+=1
-            self.Topk_faulty_code=1
-        else:
-            # self.Masked_top5+=1  
-            self.check_point["topk"]["fault"]["Masked"]+=1
-            self.Topk_faulty_code=0
-    
-        self.GACC1=self._gold_acc1*100/self._num_images
-        self.GACCk=self._gold_acck*100/self._num_images
-        self.FACC1=self._faul_acc1*100/self._num_images
-        self.FACCk=self._faul_acck*100/self._num_images
+        # if(self.T5_Critical!=0):
+        #     # self.Critical_top5+=1
+        #     self.check_point["topk"]["fault"]["Critical"]+=1
+        #     self.Topk_faulty_code=2
+        # elif self.T5_SDC !=0:
+        #     # self.SDC_top5+=1
+        #     self.check_point["topk"]["fault"]["SDC"]+=1
+        #     self.Topk_faulty_code=1
+        # else:
+        #     # self.Masked_top5+=1  
+        #     self.check_point["topk"]["fault"]["Masked"]+=1
+        #     self.Topk_faulty_code=0
+
+        self.G_goal_prob = (self.G_reached_goal*100)/self._num_episodes
+        self.F_goal_prob = (self.F_reached_goal*100)/self._num_episodes
+
+        self.G_max_steps_prob = (self.G_max_steps*100)/self._num_episodes
+        self.F_max_steps_prob = (self.F_max_steps*100)/self._num_episodes
+
+        self.G_collision_prob = (self.G_collisions*100)/self._num_episodes
+        self.F_collision_prob = (self.F_collisions*100)/self._num_episodes
+
+        self.G_mean_reward = self.G_tot_reward/self._num_episodes
+        self.F_mean_reward = self.F_tot_reward/self._num_episodes
+
+        self.G_mean_steps = self.G_tot_steps/self._num_episodes
+        self.F_mean_steps = self.F_tot_steps/self._num_episodes
+
+        # self.Masked_perc = (self.Masked*100)/self._num_episodes
+        # self.SDC_perc = (self.SDC*100)/self._num_episodes
+        # self.Critical_perc = (self.Critical*100)/self._num_episodes
 
 
     def update_fault_parse_results(self):
-        self._fault_dictionary['gold_ACC@1'] = self.GACC1.item()
-        self._fault_dictionary['gold_ACC@k'] = self.GACCk.item()
-        self._fault_dictionary['goldenf1_1'] = self.goldenf1_1.item()
-        self._fault_dictionary['goldenf1_k'] = self.goldenf1_k.item()
-        self._fault_dictionary['img_Top1_Crit'] = self.T1_Critical
-        self._fault_dictionary['img_Top1_SDC'] = self.T1_SDC
-        self._fault_dictionary['img_Top1_Masked'] = self.T1_Masked
-        self._fault_dictionary['img_Topk_Crit'] = self.T5_Critical
-        self._fault_dictionary['img_Topk_SDC'] = self.T5_SDC
-        self._fault_dictionary['img_Topk_Masked'] = self.T5_Masked
-        self._fault_dictionary['fault_ACC@1'] = self.FACC1.item()
-        self._fault_dictionary['fault_ACC@k'] = self.FACCk.item()
-        self._fault_dictionary['fault_f1@1'] = self.fault_f1_1.item()
-        self._fault_dictionary['fault_f1@k'] = self.fault_f1_k.item()
-        self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
-        self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
+
+        # new parameters
+        self._fault_dictionary['golden_goal_prob'] = self.G_goal_prob.item()
+        self._fault_dictionary['faulty_goal_prob'] = self.F_goal_prob.item()
+
+        self._fault_dictionary['golden_max_steps_prob'] = self.G_max_steps_prob.item()
+        self._fault_dictionary['faulty_max_steps_prob'] = self.F_max_steps_prob.item()
+
+        self._fault_dictionary['golden_collision_prob'] = self.G_collision_prob.item()
+        self._fault_dictionary['faulty_collision_prob'] = self.F_collision_prob.item()
+
+        self._fault_dictionary['golden_mean_reward'] = self.G_mean_reward.item()
+        self._fault_dictionary['faulty_mean_reward'] = self.F_mean_reward.item()
+
+        self._fault_dictionary['golden_mean_steps'] = self.G_mean_steps.item()
+        self._fault_dictionary['faulty_mean_steps'] = self.F_mean_steps.item()
+
+        self._fault_dictionary['Masked'] = self.Masked
+        self._fault_dictionary['SDC'] = self.SDC
+        self._fault_dictionary['Critical'] = self.Critical
 
 
-    def create_report(self,file_name):
-        listdirectories=os.listdir(self.log_path)
+    def create_report(self,file_name, log_folder):
+        listdirectories=os.listdir(log_folder)
         num=0 
         file_name_cmp=f"{file_name}_"   
         for dir in listdirectories:      
@@ -923,15 +929,15 @@ class FI_report_classifier(object):
         num+=1
         new_golden_name=f"{file_name}_{num}.json"
         old_report_name=f"{file_name}.json"
-        if os.path.exists(os.path.join(self.log_path,old_report_name)):
-            os.system(f"mv {os.path.join(self.log_path,old_report_name)} {os.path.join(self.log_path,new_golden_name)}")
-        self._report_dictionary=self.load_report(file_name)
+        if os.path.exists(os.path.join(log_folder,old_report_name)):
+            os.system(f"mv {os.path.join(log_folder,old_report_name)} {os.path.join(log_folder,new_golden_name)}")
+        self._report_dictionary=self.load_report(log_folder, file_name)
         
 
-    def load_report(self,file_name):
+    def load_report(self,log_folder, file_name):
 
         file_name_json=f"{file_name}.json"
-        golden_file_path=os.path.join(self.log_path,file_name_json)
+        golden_file_path=os.path.join(log_folder,file_name_json)
         loaded_report={}
         if not os.path.exists(golden_file_path):
             with open(golden_file_path,'w') as Golden_file:
@@ -941,20 +947,21 @@ class FI_report_classifier(object):
                 loaded_report=json.load(Golden_file)
         return(loaded_report)
 
-    def save_report(self,file_name):    
-        file_name_json=f"{file_name}.json"    
-        golden_file_path=os.path.join(self.log_path,file_name_json)
-        with open(golden_file_path,'w') as Golden_file:
+    def save_report(self,file_name, folder_path=None):    
+        file_name_json=f"{file_name}.json"   
+        # if file_name_json.startswith('F'):
+        print(file_name_json)
+        print(folder_path)
+        file_path=os.path.join(folder_path,file_name_json)
+        with open(file_path,'w') as Golden_file:
             json.dump(self._report_dictionary,Golden_file)
 
 
-    def update_report(self,index,output,target,topk=(1,)):
-        maxk=max(topk)
-        self._report_dictionary[index]={}
-        pred, clas=output.cpu().topk(maxk,1,True,True)
-        self._report_dictionary[index]['pred']=pred.tolist()
-        self._report_dictionary[index]['clas']=clas.tolist()
-        self._report_dictionary[index]['target']=target.cpu().tolist()
+    def update_report(self,episode, num_step, reward, termination_reason):
+        self._report_dictionary[f'ep{episode}']={}
+        self._report_dictionary[f'ep{episode}']['num_step']=num_step
+        self._report_dictionary[f'ep{episode}']['reward']=reward
+        self._report_dictionary[f'ep{episode}']['termination_reason']=termination_reason
         #print(self._report_dictionary)
         
     def update_report_shared_dict(self,index,output,target,topk=(1,)):
@@ -975,149 +982,260 @@ class FI_report_classifier(object):
 
 
 
+    # def Fault_parser(self,golden_file_report, faulty_file_report, topk=(1,)):
+    #     self._golden_dictionary=self.load_report(golden_file_report)
+    #     self._FI_dictionary=self.load_report(faulty_file_report)
+    #     self.Full_report = pd.DataFrame()
+    #     for index in self._golden_dictionary:
+    #         self.Golden=self._golden_dictionary[index]
+    #         # return the tensors corresponding to the labels (i think one hot encoded) from both faulty and golden model and the ground truth
+    #         G_logits=torch.tensor(self.Golden['rl_output'],requires_grad=False).t()
+    #         G_reward=torch.tensor(self.Golden['reward'],requires_grad=False).t()
+    #         G_goal=torch.tensor(self.Golden['reached_goal'],requires_grad=False)
+    #         G_term=torch.tensor(self.Golden['termination_reason'],requires_grad=False)
+    #         G_target = 0
+    #         # self.G_pred_current = G_pred
+    #         # self.G_clas_current = G_clas
+
+    #         maxk=max(topk)
+    #         mink=min(topk)
+    #         # correctly predicted class by the golden model (boolean mask: 
+    #         # 1° row -> most probable prediction,
+    #         # 2° row -> second most probable prediction)
+    #         CMPGolden=G_clas.eq(G_target[None])
+            
+
+    #         # computes the golden accuracy for each class
+    #         self.Gacc1=CMPGolden[:mink].sum(dim=0,dtype=torch.float32)
+    #         self.Gacc5=CMPGolden[:maxk].sum(dim=0,dtype=torch.float32)
+    #         gold_result_list = []
+    #         for k in topk:
+    #             gold_correct_k = CMPGolden[:k].flatten().sum(dtype=torch.float32)
+    #             gold_result_list.append(gold_correct_k) 
+
+    #         self._num_images+=batch_size
+    #         self._gold_acc1+=gold_result_list[0]
+    #         self._gold_acck+=gold_result_list[1]
+  
+    #         # best f1 score (golden)
+    #         tot_classes = len(torch.unique(G_clas))
+    #         golden_best_preds = torch.squeeze(G_clas[:mink])
+    #         #f1 = F1Score(task='multiclass', num_classes= tot_classes)
+    #         #self.goldenf1_1 = f1(golden_best_preds, G_target)
+            
+
+    #         # kth best f1 score, sum of f1's (golden)
+    #         #goldenf1_k_score = 0
+    #         #for pred in G_clas[:maxk]:
+    #         #    goldenf1_k_score += f1(pred, G_target)
+    #         #self.goldenf1_k = goldenf1_k_score
+
+    #         if index in self._FI_dictionary:
+    #             ResTop1=""
+    #             ResTop5=""
+                
+    #             self.Faulty=self._FI_dictionary[index]
+
+    #             FI_pred=torch.tensor(self.Faulty['pred'],requires_grad=False).t()
+    #             FI_clas=torch.tensor(self.Faulty['clas'],requires_grad=False).t()
+    #             FI_target=torch.tensor(self.Faulty['target'],requires_grad=False)
+
+                
+    #             CMPFaulty=FI_clas.eq(FI_target[None]) # bolean comparison between twoo tnesors of different shape
+
+    #             self.Facc1=CMPFaulty[:mink].sum(dim=0,dtype=torch.float32)
+    #             self.Facc5=CMPFaulty[:maxk].sum(dim=0,dtype=torch.float32)
+
+    #             CMPpredGoldFaulty=G_pred.eq(FI_pred).sum(dim=0,dtype=torch.float32)
+    #             CMPClasGoldFaulty=G_clas.eq(FI_clas).sum(dim=0,dtype=torch.float32)
+    #             ResTop1=[]
+    #             ResTop5=[]
+
+    #             for img in range(batch_size):                
+    #                 if self.Gacc1[img] == self.Facc1[img]:
+    #                     if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
+    #                         self.T1_Masked+=1                
+    #                         ResTop1.append("Masked")
+    #                         # print(CMPpredGoldFaulty)
+    #                         # print(CMPClasGoldFaulty)
+    #                     else:
+    #                         self.T1_SDC+=1
+    #                         ResTop1.append("SDC")
+    #                 else:
+    #                     self.T1_Critical+=1
+    #                     ResTop1.append("Critical")
+
+    #                 if self.Gacc5[img] == self.Facc5[img]:
+    #                     if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
+    #                         self.T5_Masked+=1
+    #                         ResTop5.append("Masked")
+    #                         # print(CMPpredGoldFaulty)
+    #                         # print(CMPClasGoldFaulty)
+    #                     else:
+    #                         self.T5_SDC+=1
+    #                         ResTop5.append("SDC")
+    #                 else:
+    #                     self.T5_Critical+=1
+    #                     ResTop5.append("Critical")
+                    
+    #                 FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+    #                 if ((G_target[img]==G_clas.t()[img][0]) and (G_target[img]!=FI_clas.t()[img][0])
+    #                     ) or ((G_target[img] in G_clas.t()[img]) and (G_target[img] not in FI_clas.t()[img])):
+    #                     for idx,val in enumerate(G_pred.t()[img]): 
+    #                         df1 = pd.DataFrame({'FaultID':FaultID,
+    #                                             'imID': (batch_size*int(index)+img),                                    
+    #                                             'Pred_idx':idx,
+    #                                             'G_pred':val.item(),
+    #                                             'F_pred':FI_pred.t()[img][idx].item(),
+    #                                             'G_clas':G_clas.t()[img][idx].item(),                                      
+    #                                             'F_clas':FI_clas.t()[img][idx].item(),
+    #                                             'G_Target':G_target[img].item()},index=[0])  
+    #                         self.Full_report = pd.concat([self.Full_report,df1],ignore_index=True)
+
+                    
+    #             self._FI_dictionary[index]['ResTop1']=ResTop1 
+    #             self._FI_dictionary[index]['ResTopk']=ResTop5 
+
+    #             faul_result_list = []
+    #             for k in topk:
+    #                 faul_correct_k = CMPFaulty[:k].flatten().sum(dtype=torch.float32)
+    #                 faul_result_list.append(faul_correct_k) 
+
+    #             self._faul_acc1+=faul_result_list[0]
+    #             self._faul_acck+=faul_result_list[1]
+                
+    #         else:
+    #             self.T5_Critical+=batch_size
+    #             self.T1_Critical+=batch_size
+    #     file_name=faulty_file_report.split('/')[-1].split('.')[0]
+    #     csv_report=f"{file_name}.csv"
+    #     if(len(self.Full_report)>0):
+    #         self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
+           
+    #     #self._report_dictionary=self._FI_dictionary
+    #     self._FI_dictionary={}
+    #     self._golden_dictionary={}
+        
+    #     #self.save_report(faulty_file_report)
+    #         #return(FI_results_json)
+    
     def Fault_parser(self,golden_file_report, faulty_file_report, topk=(1,)):
-        self._golden_dictionary=self.load_report(golden_file_report)
-        self._FI_dictionary=self.load_report(faulty_file_report)
-        self.Full_report = pd.DataFrame()
+
+        # golden_file_path=os.path.join(self.log_path, golden_file_report)
+        faulty_file_path = os.path.join(self.log_path,faulty_file_report.split('.')[0])
+        golden_file_path = os.path.join(self.log_path, 'golden_states')
+
+        self._golden_dictionary=self.load_report(file_name=golden_file_report, log_folder=self.log_path)
+        self._FI_dictionary=self.load_report(file_name=faulty_file_report, log_folder=faulty_file_path)
+
+        self.golden_run_report = self.load_report(file_name='states__part_0', log_folder=golden_file_path)
+        self.faulty_run_report = self.load_report(file_name='states__part_0', log_folder=faulty_file_path)
+        # print(f'self.faulty_run_report: {self.faulty_run_report['episode_2'].keys()}')
+        # sys.exit()
+        self.Full_report = dict()
         for index in self._golden_dictionary:
             self.Golden=self._golden_dictionary[index]
-            # return the tensors corresponding to the labels (i think one hot encoded) from both faulty and golden model and the ground truth
-            G_pred=torch.tensor(self.Golden['pred'],requires_grad=False).t()
-            G_clas=torch.tensor(self.Golden['clas'],requires_grad=False).t()
-            G_target=torch.tensor(self.Golden['target'],requires_grad=False)
-            batch_size = G_target.size(0)
-            # self.G_pred_current = G_pred
-            # self.G_clas_current = G_clas
-
-            maxk=max(topk)
-            mink=min(topk)
-            # correctly predicted class by the golden model (boolean mask: 
-            # 1° row -> most probable prediction,
-            # 2° row -> second most probable prediction)
-            CMPGolden=G_clas.eq(G_target[None])
+            G_num_step = self.Golden['num_step']
+            G_reward = self.Golden['reward']
+            G_term=self.Golden['termination_reason']
             
-
-            # computes the golden accuracy for each class
-            self.Gacc1=CMPGolden[:mink].sum(dim=0,dtype=torch.float32)
-            self.Gacc5=CMPGolden[:maxk].sum(dim=0,dtype=torch.float32)
-            gold_result_list = []
-            for k in topk:
-                gold_correct_k = CMPGolden[:k].flatten().sum(dtype=torch.float32)
-                gold_result_list.append(gold_correct_k) 
-
-            self._num_images+=batch_size
-            self._gold_acc1+=gold_result_list[0]
-            self._gold_acck+=gold_result_list[1]
-  
-            # best f1 score (golden)
-            tot_classes = len(torch.unique(G_clas))
-            golden_best_preds = torch.squeeze(G_clas[:mink])
-            #f1 = F1Score(task='multiclass', num_classes= tot_classes)
-            #self.goldenf1_1 = f1(golden_best_preds, G_target)
+            if G_term == 'goal':
+                self.G_reached_goal += 1
+            elif G_term == 'steps':
+                self.G_max_steps += 1
+            elif G_term == 'collision':
+                self.G_collisions += 1
             
-
-            # kth best f1 score, sum of f1's (golden)
-            #goldenf1_k_score = 0
-            #for pred in G_clas[:maxk]:
-            #    goldenf1_k_score += f1(pred, G_target)
-            #self.goldenf1_k = goldenf1_k_score
+            self.G_tot_reward += G_reward
+            self.G_tot_steps += G_num_step
 
             if index in self._FI_dictionary:
-                ResTop1=""
-                ResTop5=""
+                Res = []
                 
                 self.Faulty=self._FI_dictionary[index]
 
-                FI_pred=torch.tensor(self.Faulty['pred'],requires_grad=False).t()
-                FI_clas=torch.tensor(self.Faulty['clas'],requires_grad=False).t()
-                FI_target=torch.tensor(self.Faulty['target'],requires_grad=False)
+                F_num_step = self.Faulty['num_step']
+                F_reward = self.Faulty['reward']
+                F_term=self.Faulty['termination_reason']
+
+                if F_term == 'goal':
+                    self.F_reached_goal += 1
+                elif F_term == 'steps':
+                    self.F_max_steps += 1
+                elif F_term == 'collision':
+                        self.F_collisions += 1
+                
+                
+                if F_term == G_term:
+
+                    if G_num_step == F_num_step:
+                        self.Masked += 1
+                        Res.append('Masked')
+                    
+                    else:
+                        self.SDC += 1
+                        Res.append('SDC')
+
+                        # for episode in self.golden_run_report.keys():
+                        episodeID= f'episode_{index.split('ep')[-1]}'
+
+                        # TODO: gestisci il caso di numero di step diversi (G_num_step, F_num_step) che tra l'altro è una cosa che capita sempre
+                        self.Full_report[episodeID] = {}
+
+                        for step in self.faulty_run_report[episodeID].keys():
+                            if int(step.split('_')[-1]) > 0:
+                                golden_rl_output = self.golden_run_report[episodeID][step]['rl_output'] if step in list(self.golden_run_report[episodeID].keys()) else None
+                                faulty_rl_output = self.faulty_run_report[episodeID][step]['rl_output'] 
+
+                                golden_transcribed_action = self.golden_run_report[episodeID][step]['transcribed_action'] if step in list(self.golden_run_report[episodeID].keys()) else None
+                                faulty_transcribed_action = self.faulty_run_report[episodeID][step]['transcribed_action'] 
+
+                                deep_report = {'FaultID':faulty_file_report,
+                                            
+                                                'episode': int(index.split('ep')[-1]), 
+                                                'current_step':int(step.split('_')[-1]),
+
+                                                'G_max_steps':G_num_step,
+                                                'F_max_steps':F_num_step,
+
+                                                'G_rl_output':golden_rl_output,
+                                                'F_rl_output':faulty_rl_output,
+
+                                                'G_transcribed_action':golden_transcribed_action,
+                                                'F_transcribed_action':faulty_transcribed_action
+
+                                                }
+                            
+                                self.Full_report[episodeID][step] = deep_report
+                            
+
+                    # TODO: what if the label is 'collision', is the same but it took a higher number of steps to collide?
+                    # TODO: it might mean that the hardening mechanism could have had more time to recover the fault
+                    # it is something that might be explored
+                else: 
+                    
+                    self.Critical += 1
+                    Res.append('Critical')
+                    
 
                 
-                CMPFaulty=FI_clas.eq(FI_target[None]) # bolean comparison between twoo tnesors of different shape
+                self._FI_dictionary[index]['Res'] = Res
 
-                self.Facc1=CMPFaulty[:mink].sum(dim=0,dtype=torch.float32)
-                self.Facc5=CMPFaulty[:maxk].sum(dim=0,dtype=torch.float32)
 
-                CMPpredGoldFaulty=G_pred.eq(FI_pred).sum(dim=0,dtype=torch.float32)
-                CMPClasGoldFaulty=G_clas.eq(FI_clas).sum(dim=0,dtype=torch.float32)
-                ResTop1=[]
-                ResTop5=[]
 
-                for img in range(batch_size):                
-                    if self.Gacc1[img] == self.Facc1[img]:
-                        if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
-                            self.T1_Masked+=1                
-                            ResTop1.append("Masked")
-                            # print(CMPpredGoldFaulty)
-                            # print(CMPClasGoldFaulty)
-                        else:
-                            self.T1_SDC+=1
-                            ResTop1.append("SDC")
-                    else:
-                        self.T1_Critical+=1
-                        ResTop1.append("Critical")
+                self.F_tot_reward += F_reward
+                self.F_tot_steps += F_num_step
 
-                    if self.Gacc5[img] == self.Facc5[img]:
-                        if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
-                            self.T5_Masked+=1
-                            ResTop5.append("Masked")
-                            # print(CMPpredGoldFaulty)
-                            # print(CMPClasGoldFaulty)
-                        else:
-                            self.T5_SDC+=1
-                            ResTop5.append("SDC")
-                    else:
-                        self.T5_Critical+=1
-                        ResTop5.append("Critical")
-                    
-                    FaultID=faulty_file_report.split("/")[-1].split(".")[0]
-
-                    if ((G_target[img]==G_clas.t()[img][0]) and (G_target[img]!=FI_clas.t()[img][0])
-                        ) or ((G_target[img] in G_clas.t()[img]) and (G_target[img] not in FI_clas.t()[img])):
-                        for idx,val in enumerate(G_pred.t()[img]): 
-                            df1 = pd.DataFrame({'FaultID':FaultID,
-                                                'imID': (batch_size*int(index)+img),                                    
-                                                'Pred_idx':idx,
-                                                'G_pred':val.item(),
-                                                'F_pred':FI_pred.t()[img][idx].item(),
-                                                'G_clas':G_clas.t()[img][idx].item(),                                      
-                                                'F_clas':FI_clas.t()[img][idx].item(),
-                                                'G_Target':G_target[img].item()},index=[0])  
-                            self.Full_report = pd.concat([self.Full_report,df1],ignore_index=True)
-
-                    
-                self._FI_dictionary[index]['ResTop1']=ResTop1 
-                self._FI_dictionary[index]['ResTopk']=ResTop5 
-
-                faul_result_list = []
-                for k in topk:
-                    faul_correct_k = CMPFaulty[:k].flatten().sum(dtype=torch.float32)
-                    faul_result_list.append(faul_correct_k) 
-
-                self._faul_acc1+=faul_result_list[0]
-                self._faul_acck+=faul_result_list[1]
-
-                # best f1 score (fault)
-                tot_classes_FI = len(torch.unique(FI_clas))
-                FI_best_preds = torch.squeeze(FI_clas[:mink])
-                #f1 = F1Score(task='multiclass', num_classes= tot_classes_FI)
-                #self.fault_f1_1 += f1(FI_best_preds, FI_target)
-
-                # kth best f1 score, sum of f1's (fault)
-                # FIf1_k_score = 0
-                # for pred in G_clas[:maxk]:
-                #     FIf1_k_score += f1(pred, G_target)
-                # self.fault_f1_k += FIf1_k_score
-                
-            else:
-                self.T5_Critical+=batch_size
-                self.T1_Critical+=batch_size
         file_name=faulty_file_report.split('/')[-1].split('.')[0]
-        csv_report=f"{file_name}.csv"
+        json_report=f"{file_name}.json"
+        report_file_path = os.path.join(faulty_file_path, json_report)
+
         if(len(self.Full_report)>0):
-            self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
-           
-        #self._report_dictionary=self._FI_dictionary
+            with open(report_file_path,'w') as report_file:
+                json.dump(self.Full_report, report_file)
+            
+        self._report_dictionary=self._FI_dictionary
         self._FI_dictionary={}
         self._golden_dictionary={}
         
@@ -1157,13 +1275,13 @@ class FI_framework(object):
     def int_to_float(self,h):
         return float(struct.unpack(">f",struct.pack(">I",h))[0])
 
-    def create_fault_injection_model(self,device,model,batch_size=1,input_shape=[3,224,224],layer_types=[torch.nn.Conv2d],Neurons=False): 
+    def create_fault_injection_model(self,device,configuration,batch_size=1,input_shape=[3,224,224],layer_types=[torch.nn.Conv2d],Neurons=False): 
         if device.type.startswith('cuda'): 
             use_cuda=True
         else:
             use_cuda=False
         if Neurons:
-            self.pfi_model = single_bit_flip_func(model, 
+            self.pfi_model = single_bit_flip_func(configuration, 
                         batch_size=batch_size,
                         input_shape=input_shape,
                         layer_types=layer_types,
@@ -1171,7 +1289,7 @@ class FI_framework(object):
                         bits=8,
                         )
         else:
-            self.pfi_model = FaultInjection(model, 
+            self.pfi_model = FaultInjection(configuration, 
                         batch_size=batch_size,
                         input_shape=input_shape,
                         layer_types=layer_types,
@@ -1228,7 +1346,7 @@ class FI_framework(object):
         self.log_msg=""
         self.faulty_model.eval()
 
-    def bit_flip_weight_inj(self, fault):
+    def bit_flip_weight_inj(self, fault, episodes):
         layer=[fault[0]['layer']]
         k=[fault[0]['kernel']]
         c_in=[fault[0]['channel']]
@@ -1244,14 +1362,13 @@ class FI_framework(object):
         self._layer=layer
         if k!=None or c_in!=None:
             self.faulty_model=self.pfi_model.declare_weight_fault_injection(
-                BitFlip=self._bit_flip_weight, layer_num=layer, k=k, dim1=c_in, dim2=kH, dim3=kW, bitmask=inj_mask
+                BitFlip=self._bit_flip_weight, layer_num=layer, k=k, dim1=c_in, dim2=kH, dim3=kW, bitmask=inj_mask, episodes=episodes
             )
         else:
             self.faulty_model=self.pfi_model.declare_weight_fault_injection(
-                BitFlip=self._bit_flip_weight, layer_num=layer, k=k, dim1=c_in, bitmask=inj_mask
+                BitFlip=self._bit_flip_weight, layer_num=layer, k=k, dim1=c_in, bitmask=inj_mask, episodes=episodes
             )
-
-        self.faulty_model.eval()
+            
 
     def _bit_flip_weight(self,data, location, injmask):
         orig_data=data[location].item()
@@ -1386,15 +1503,16 @@ class DatasetSampling(object):
     
 
 class FI_manager(object):
-    def __init__(self,log_path,chpt_file_name,fault_report_name) -> None:
-        self.faulty_model=None
+    def __init__(self,log_path,chpt_file_name,fault_report_name, num_episodes) -> None:
+        self.faulty_controller=None
         self.pfi_model=None
         self.fault_list_type='weight'
         self._fault_list=[]
         self.log_msg=''
         self.log_path=log_path
         self.log_file=os.path.join(log_path,'FSIM_log.log')
-        self.FI_report=FI_report_classifier(log_path,chpt_file=chpt_file_name,fault_report_name=fault_report_name)
+        self.FI_report=FI_report_classifier(log_path,chpt_file=chpt_file_name,fault_report_name=fault_report_name, 
+                                            episodes = num_episodes)
         self.FI_framework=FI_framework(log_path)
         self._golden_file_name=""
         self._faulty_file_name=""
@@ -1430,11 +1548,13 @@ class FI_manager(object):
     def write_reports(self):
         self.FI_report.set_fault_report(self.FI_framework.injected_fault)
         self.FI_report.update_check_point()
-        file_name=self._faulty_file_name.split('/')[-1].split('.')[0]
-        csv_report=f"{file_name}.csv"
-        self.FI_report.Full_report.to_csv(os.path.join(self.log_path,csv_report))
-        if os.path.exists(f"{self.log_path}/{self._faulty_file_name}.json"):
-            os.remove(f"{self.log_path}/{self._faulty_file_name}.json")
+        log_folder = os.path.join(self.log_path, self._faulty_file_name)
+
+        # file_name=self._faulty_file_name.split('/')[-1].split('.')[0]
+        # csv_report=f"{file_name}.csv"
+        # self.FI_report.Full_report.to_csv(os.path.join(log_folder,csv_report))
+        # if os.path.exists(f"{log_folder}/{self._faulty_file_name}.json"):
+        #     os.remove(f"{log_folder}/{self._faulty_file_name}.json")
         #self.FI_report.save_report(self._faulty_file_name)
 
     def load_check_point(self):
@@ -1442,18 +1562,27 @@ class FI_manager(object):
 
     def open_golden_results(self,golden_file_name):
         self._golden_file_name=golden_file_name
-        self.FI_report.create_report(golden_file_name)
-
-    def close_golden_results(self):
-        self.FI_report.save_report(self._golden_file_name)
+        self.FI_report.create_report(file_name=golden_file_name, log_folder=self.log_path)
         
 
-    def open_faulty_results(self,results_fault_name):
+
+    def close_golden_results(self):
+        self.FI_report.save_report(file_name=self._golden_file_name, folder_path=self.log_path)
+        
+
+    def open_faulty_results(self,results_fault_name, saver):
         self._faulty_file_name=results_fault_name
-        self.FI_report.create_report(results_fault_name)
+        log_folder = os.path.join(self.log_path, results_fault_name)
+        if not os.path.exists(log_folder):
+            os.mkdir(log_folder)
+
+        self.FI_report.create_report(file_name=results_fault_name, log_folder=log_folder)
+
+        saver.write_folder = utils.get_local_parameter('working_directory')
 
     def close_faulty_results(self):
-        self.FI_report.save_report(self._faulty_file_name)
+        log_folder = os.path.join(self.log_path, self._faulty_file_name)
+        self.FI_report.save_report(folder_path=log_folder, file_name=self._faulty_file_name)
 
 
     def parse_results(self):    

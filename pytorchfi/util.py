@@ -4,8 +4,8 @@ import torch
 import math
 from collections import defaultdict
 import numpy as np
-from torchmetrics.detection.mean_ap import MeanAveragePrecision
-from torchmetrics import F1Score
+# from torchmetrics.detection.mean_ap import MeanAveragePrecision
+# from torchmetrics import F1Score
 
 def random_value(min_val: int = -1, max_val: int = 1):
     return random.uniform(min_val, max_val)
@@ -127,20 +127,20 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
 def extract_coordinates(bb):
     return math.floor(bb[0]), math.floor(bb[1]), math.ceil(bb[2]), math.ceil(bb[3])
 
-def compute_mAP(metric_setting:MeanAveragePrecision,
-                gt_labels: torch.Tensor,
-                gt_bb: torch.Tensor, 
-                pred_labels: torch.Tensor, 
-                pred_bb: torch.Tensor, 
-                pred_scores: torch.Tensor):
+# def compute_mAP(metric_setting:MeanAveragePrecision,
+#                 gt_labels: torch.Tensor,
+#                 gt_bb: torch.Tensor, 
+#                 pred_labels: torch.Tensor, 
+#                 pred_bb: torch.Tensor, 
+#                 pred_scores: torch.Tensor):
     
-    preds = [setup_pred_dict_mAP(pred_labels, pred_bb, pred_scores)]
-    target = [setup_target_dict_mAP(gt_labels, gt_bb)]
-    # print(f'preds: {preds}')
-    # print(f'target: {target}')
-    metric_setting.update(preds=preds, target=target)
-    score = metric_setting.compute()
-    return score
+#     preds = [setup_pred_dict_mAP(pred_labels, pred_bb, pred_scores)]
+#     target = [setup_target_dict_mAP(gt_labels, gt_bb)]
+#     # print(f'preds: {preds}')
+#     # print(f'target: {target}')
+#     metric_setting.update(preds=preds, target=target)
+#     score = metric_setting.compute()
+#     return score
 
 def setup_pred_dict_mAP(labels:torch.Tensor, bb:torch.Tensor, scores:torch.Tensor):
     # qui vogliamo un dict nella lista per ogni label

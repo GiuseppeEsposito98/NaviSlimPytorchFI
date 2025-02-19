@@ -7,18 +7,21 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from torchdistill.common.constant import def_logger
 import numpy as np
-logger = def_logger.getChild(__name__)
+import logging 
+
+import rl_utils as utils
+from rl_drone.NaviAPPFI.Controller.test import Test
+logging
  
 
-# logger=logging.getLogger("pytorchfi") 
-# logger.setLevel(logging.DEBUG) 
+logger=logging.getLogger("pytorchfi") 
+logger.setLevel(logging.DEBUG) 
 
 class FaultInjection:
     def __init__(
         self,
-        model,
+        configuration,
         batch_size: int,
         input_shape: List[int] = None,
         layer_types=None,
@@ -30,7 +33,7 @@ class FaultInjection:
             layer_types = [nn.Conv2d]
         logging.basicConfig(format="%(asctime)-15s %(clientip)s %(user)-8s %(message)s")
 
-        self.original_model = model
+        self.original_configuration = configuration
         self.output_size = []
         self.layers_type = []
         self.layers_dim = []
@@ -41,7 +44,7 @@ class FaultInjection:
         self._input_shape = input_shape
         self._inj_layer_types = layer_types
 
-        self.corrupted_model = None
+        self.corrupted_controller = None
         self.current_layer = 0
         self.handles = []
         self.corrupt_batch = []
@@ -49,8 +52,7 @@ class FaultInjection:
         self.corrupt_dim = [[], [], []]  # C, H, W
         self.corrupt_value = []
 
-        self.use_cuda = kwargs.get("use_cuda", next(model.parameters()).is_cuda)
-
+        self.use_cuda = kwargs.get("use_cuda", next(configuration.controller._model._sb3model.policy.q_net.parameters()).is_cuda)
         if not isinstance(input_shape, list):
             raise AssertionError("Error: Input shape must be provided as a list.")
         if not (isinstance(batch_size, int) and batch_size >= 1):
@@ -59,16 +61,16 @@ class FaultInjection:
             raise AssertionError("Error: At least one layer type must be selected.")
 
         handles, _shapes, self.weights_size = self._traverse_model_set_hooks(
-            self.original_model, self._inj_layer_types
+            self.original_configuration.controller._model._sb3model.policy.q_net, self._inj_layer_types
         )
  
         dummy_shape = (1, *self._input_shape)  # profiling only needs one batch element
-        model_dtype = next(model.parameters()).dtype
+        configuration.controller_dtype = next(configuration.controller._model._sb3model.policy.q_net.parameters()).dtype
         device = "cuda" if self.use_cuda else None
-        _dummy_tensor = torch.randn(dummy_shape, dtype=model_dtype, device=device)
+        _dummy_tensor = torch.randn(dummy_shape, dtype=configuration.controller_dtype, device=device)
 
         with torch.no_grad():
-            self.original_model(_dummy_tensor)
+            self.original_configuration.controller._model.predict(_dummy_tensor)
 
         for index, _handle in enumerate(handles):
             handles[index].remove()
@@ -88,7 +90,7 @@ class FaultInjection:
 
     def reset_fault_injection(self):
         self._reset_fault_injection_state()
-        self.corrupted_model = None
+        self.corrupted_controller = None
         logger.info("Fault injector reset.")
 
     def _reset_fault_injection_state(self):
@@ -161,10 +163,11 @@ class FaultInjection:
         return handles
 
     def declare_weight_fault_injection(self, **kwargs):
-        self._reset_fault_injection_state()
+        self.reset_fault_injection()
         custom_injection = False
         custom_function = False        
         bitflip_injection = False
+        num_episodes = kwargs.get('episodes', 1)
 
         if kwargs:
             if "function" in kwargs:
@@ -196,12 +199,25 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
-        # TODO: bound check here
+        from rl_drone.sb3models.dqn import DQN
+        from copy import deepcopy
+        import sys
+        # self.corrupted_controller = Test(
+        #     environment_component = 'Environment',
+        #     model_component = 'Model',
+        #     results_directory = utils.get_local_parameter('working_directory'),
+        #     num_episodes = num_episodes,
+        # )
+        self.corrupted_model = DQN(environment_component='Environment',
+                                   read_model_path= self.original_configuration.get_component('Model').read_model_path)
+        self.corrupted_model.connect()
 
-        self.corrupted_model = copy.deepcopy(self.original_model)
+        # model_component.read_model_path = read_model_file
 
+        # self.corrupted_controller.connect()
         current_weight_layer = 0
-        for layer in self.corrupted_model.modules():
+
+        for layer in self.corrupted_model._sb3model.policy.q_net.modules():
             if isinstance(layer, tuple(self._inj_layer_types)):
                 inj_list = list(
                     filter(
@@ -215,10 +231,10 @@ class FaultInjection:
                         [
                             corrupt_k[inj],
                             corrupt_c[inj],
-                            corrupt_kH[inj],
-                            corrupt_kW[inj],
+                            # corrupt_kH[inj],
+                            # corrupt_kW[inj],
                         ]
-                    )
+                     )
                     orig_value = layer.weight[corrupt_idx].item()
 
                     with torch.no_grad():
@@ -227,15 +243,9 @@ class FaultInjection:
                                 corrupt_value = custom_function(layer.weight, corrupt_idx, corrupt_bitmask[inj])
                             else:
                                 corrupt_value = custom_function(layer.weight, corrupt_idx)
-                            layer.weight[corrupt_idx] = corrupt_value
+                            layer.weight[corrupt_idx] = corrupt_value   
                         else:
                             layer.weight[corrupt_idx] = corrupt_value[inj]
-
-                    # logger.info("Weight Injection")
-                    # logger.info(f"Layer index: {corrupt_layer[inj]}")
-                    # logger.info(f"Module: {layer}")
-                    # logger.info(f"Original value: {orig_value}")
-                    # logger.info(f"Injected value: {layer.weight[corrupt_idx]}")
                 current_weight_layer += 1
         return self.corrupted_model
     
