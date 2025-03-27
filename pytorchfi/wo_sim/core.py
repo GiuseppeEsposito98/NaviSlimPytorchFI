@@ -9,14 +9,13 @@ import torch
 import torch.nn as nn
 import numpy as np
 import logging 
-
-import rl_utils as utils
-from rl_drone.NaviAPPFI.Controller.test import Test
 logging
  
 
-logger=logging.getLogger("pytorchfi") 
-logger.setLevel(logging.DEBUG) 
+logger=logging.getLogger(__name__) 
+extra = {'clientip': '127.0.0.1',
+         'user': 'GiuseppeEsposito'}
+logger.info(extra=extra, msg="Client connected")
 
 class FaultInjection:
     def __init__(
@@ -41,7 +40,7 @@ class FaultInjection:
         self.input_size = []
         self.batch_size = batch_size
 
-        self._input_shape = input_shape
+        self._input_shapes = input_shape
         self._inj_layer_types = layer_types
 
         self.corrupted_controller = None
@@ -64,22 +63,28 @@ class FaultInjection:
             self.original_configuration.controller._model._sb3model.policy.q_net, self._inj_layer_types
         )
  
-        dummy_shape = (1, *self._input_shape)  # profiling only needs one batch element
+        dummy_shape = (1, *self._input_shapes)  # profiling only needs one batch element
         configuration.controller_dtype = next(configuration.controller._model._sb3model.policy.q_net.parameters()).dtype
         device = "cuda" if self.use_cuda else None
-        _dummy_tensor = torch.randn(dummy_shape, dtype=configuration.controller_dtype, device=device)
+
+        _dummy_input = {
+            'vec':torch.randn(self._input_shapes[1], dtype=configuration.controller_dtype, device=device),
+            'img':torch.randn(self._input_shapes[0], dtype=configuration.controller_dtype, device=device)
+        }
+
+        print(configuration.controller_dtype)
 
         with torch.no_grad():
-            self.original_configuration.controller._model.predict(_dummy_tensor)
+            self.original_configuration.controller._model.predict(_dummy_input)
 
         for index, _handle in enumerate(handles):
             handles[index].remove()
 
-        logger.info("Input shape:")
-        logger.info(dummy_shape[1:])
+        logger.info(extra=extra, msg="Input shape:")
+        logger.info(extra=extra, msg=dummy_shape[1:])
 
-        logger.info("Model layer sizes:")
-        logger.info(
+        logger.info(extra=extra, msg="Model layer sizes:")
+        logger.info(extra=extra, msg=
             "\n".join(
                 [
                     "".join(["{:4}".format(item) for item in row])
@@ -91,7 +96,7 @@ class FaultInjection:
     def reset_fault_injection(self):
         self._reset_fault_injection_state()
         self.corrupted_controller = None
-        logger.info("Fault injector reset.")
+        logger.info(extra=extra, msg="Fault injector reset.")
 
     def _reset_fault_injection_state(self):
         (
@@ -199,15 +204,8 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
-        from rl_drone.sb3models.dqn import DQN
-        from copy import deepcopy
-        import sys
-        # self.corrupted_controller = Test(
-        #     environment_component = 'Environment',
-        #     model_component = 'Model',
-        #     results_directory = utils.get_local_parameter('working_directory'),
-        #     num_episodes = num_episodes,
-        # )
+        from iasl_experimental.reinforcement_learning.sb3models.dqn import DQN
+
         self.corrupted_model = DQN(environment_component='Environment',
                                    read_model_path= self.original_configuration.get_component('Model').read_model_path)
         self.corrupted_model.connect()
@@ -377,10 +375,10 @@ class FaultInjection:
 
         if kwargs:
             if "function" in kwargs:
-                logger.info("Declaring Custom Function")
+                logger.info(extra=extra, msg="Declaring Custom Function")
                 custom_injection, injection_function = True, kwargs.get("function")
             else:
-                logger.info("Declaring Specified Fault Injector")
+                logger.info(extra=extra, msg="Declaring Specified Fault Injector")
                 self.corrupt_value = kwargs.get("value", [])
 
             self.corrupt_layer = kwargs.get("layer_num", [])
@@ -389,9 +387,9 @@ class FaultInjection:
             self.corrupt_dim[1] = kwargs.get("dim2", [])
             self.corrupt_dim[2] = kwargs.get("dim3", [])
 
-            logger.info(f"Convolution: {self.corrupt_layer}")
-            logger.info("Batch, x, y, z:")
-            logger.info(
+            logger.info(extra=extra, msg=f"Convolution: {self.corrupt_layer}")
+            logger.info(extra=extra, msg="Batch, x, y, z:")
+            logger.info(extra=extra, msg=
                 f"{self.corrupt_batch}, {self.corrupt_dim[0]}, {self.corrupt_dim[1]}, {self.corrupt_dim[2]}"
             )
         else:
@@ -425,7 +423,7 @@ class FaultInjection:
         ):
             raise AssertionError("Injection location missing values.")
 
-        logger.info("Checking bounds before runtime")
+        logger.info(extra=extra, msg="Checking bounds before runtime")
         for i in range(len(batch)):
             self.assert_injection_bounds(i)
 
@@ -463,10 +461,10 @@ class FaultInjection:
         if layer_dim <= 3 and self.corrupt_dim[2][index] is not None:
             warnings.warn(f"Values Dim3 ignored, since layer is {layer_type}")
 
-        logger.info(f"Finished checking bounds on inj '{index}'")
+        logger.info(extra=extra, msg=f"Finished checking bounds on inj '{index}'")
 
     def _set_value(self, module, input_val, output):
-        logger.info(
+        logger.info(extra=extra, msg=
             f"Processing hook of Layer {self.current_layer}: {self.layers_type[self.current_layer]}"
         )
         inj_list = list(
@@ -478,34 +476,34 @@ class FaultInjection:
 
         layer_dim = self.layers_dim[self.current_layer]
 
-        logger.info(f"Layer {self.current_layer} injection list size: {len(inj_list)}")
+        logger.info(extra=extra, msg=f"Layer {self.current_layer} injection list size: {len(inj_list)}")
         if layer_dim == 2:
             for i in inj_list:
                 self.assert_injection_bounds(index=i)
-                logger.info(
+                logger.info(extra=extra, msg=
                     f"Original value at [{self.corrupt_batch[i]}][{self.corrupt_dim[0][i]}]: {output[self.corrupt_batch[i]][self.corrupt_dim[0][i]]}"
                 )
-                logger.info(f"Changing value to {self.corrupt_value[i]}")
+                logger.info(extra=extra, msg=f"Changing value to {self.corrupt_value[i]}")
                 output[self.corrupt_batch[i]][
                     self.corrupt_dim[0][i]
                 ] = self.corrupt_value[i]
         elif layer_dim == 3:
             for i in inj_list:
                 self.assert_injection_bounds(index=i)
-                logger.info(
+                logger.info(extra=extra, msg=
                     f"Original value at [{self.corrupt_batch[i]}][{self.corrupt_dim[0][i]}][{self.corrupt_dim[1][i]}]: {output[self.corrupt_batch[i]][self.corrupt_dim[0][i]][self.corrupt_dim[1][i]]}"
                 )
-                logger.info(f"Changing value to {self.corrupt_value[i]}")
+                logger.info(extra=extra, msg=f"Changing value to {self.corrupt_value[i]}")
                 output[self.corrupt_batch[i]][
                     self.corrupt_dim[0][i], self.corrupt_dim[1][i]
                 ] = self.corrupt_value[i]
         elif layer_dim == 4:
             for i in inj_list:
                 self.assert_injection_bounds(index=i)
-                logger.info(
+                logger.info(extra=extra, msg=
                     f"Original value at [{self.corrupt_batch[i]}][{self.corrupt_dim[0][i]}][{self.corrupt_dim[1][i]}][{self.corrupt_dim[2][i]}]: {output[self.corrupt_batch[i]][self.corrupt_dim[0][i]][self.corrupt_dim[1][i]][self.corrupt_dim[2][i]]}"
                 )
-                logger.info(f"Changing value to {self.corrupt_value[i]}")
+                logger.info(extra=extra, msg=f"Changing value to {self.corrupt_value[i]}")
                 output[self.corrupt_batch[i]][self.corrupt_dim[0][i]][
                     self.corrupt_dim[1][i]
                 ][self.corrupt_dim[2][i]] = self.corrupt_value[i]
@@ -577,7 +575,7 @@ class FaultInjection:
         )
 
         summary_str += "   - Shape of input into the model: ("
-        for dim in self._input_shape:
+        for dim in self._input_shapes[0]:
             summary_str += str(dim) + " "
         summary_str += ")\n"
 
@@ -616,5 +614,5 @@ class FaultInjection:
             + "\n"
         )
 
-        logger.info(summary_str)
+        logger.info(extra=extra, msg=summary_str)
         return summary_str

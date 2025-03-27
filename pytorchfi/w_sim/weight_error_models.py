@@ -2,7 +2,7 @@
 
 import random
 import struct
-import pytorchfi.core as core
+import pytorchfi.w_sim.core as core
 from pytorchfi.util import random_value
 
 _bf_inj_w_mask=0
@@ -63,6 +63,3 @@ def _bit_flip_weight(data, location):
     new_data = data[location] ^ _bf_inj_w_mask[0]
     return new_data
 """
-
-
-

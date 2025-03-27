@@ -1,0 +1,23 @@
+Metadata-Version: 2.1
+Name: pytorchfi
+Version: 1.0
+Summary: pytorchfi description
+Home-page: https://github.com/GiuseppeEsposito98/NaviAPPFI
+Author: Giuseppe Esposito
+Author-email: 
+Keywords: pytorch,python
+Classifier: Development Status :: Apha
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.7
+License-File: LICENSE
+Requires-Dist: torch==2.4.1
+Requires-Dist: torchvision>=0.13.2
+Requires-Dist: numpy
+Requires-Dist: pyyaml>=5.4.1
+Requires-Dist: scipy
+Requires-Dist: cython
+Requires-Dist: pycocotools>=2.0.2
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+
+pytorchfi description

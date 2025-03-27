@@ -13,20 +13,21 @@ import sys
 # caution: path[0] is reserved for script path (or '' in REPL)
 #sys.path.insert(1, 'pytorchfi')
 import torch
-import pytorchfi
 import numpy as np
-import pytorchfi.core as core
+import pytorchfi.w_sim.core as core
 from pytorchfi.util import random_value
-from pytorchfi.core import *
-from pytorchfi.neuron_error_models import *
+from pytorchfi.w_sim.core import *
+from pytorchfi.w_sim.neuron_error_models import *
 
 import logging
 import rl_utils as utils
 # SAVERS - save observations and states at each step
 from modifiers.saver import Saver
 
-logger=logging.getLogger("pytorchfi") 
-logger.setLevel(logging.DEBUG) 
+logger=logging.getLogger(__name__) 
+extra = {'clientip': '127.0.0.1',
+         'user': 'GiuseppeEsposito'}
+logger.info("Client connected", extra=extra)
 
 def float_to_bin(f):
     h=hex(struct.unpack('<I', struct.pack('<f', f))[0])
@@ -1592,4 +1593,3 @@ class FI_manager(object):
     
     def terminate_fsim(self):
         pass
-    

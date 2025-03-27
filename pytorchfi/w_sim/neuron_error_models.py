@@ -6,7 +6,7 @@ import struct
 
 import torch
 
-from pytorchfi import core
+from pytorchfi.w_sim import core
 from pytorchfi.util import random_value
 
 # Helper Functions
