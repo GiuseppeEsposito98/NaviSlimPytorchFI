@@ -204,11 +204,11 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
-        from iasl_experimental.reinforcement_learning.sb3models.dqn import DQN
+        # from iasl_experimental.reinforcement_learning.sb3models.dqn import DQN
 
-        self.corrupted_model = DQN(environment_component='Environment',
-                                   read_model_path= self.original_configuration.get_component('Model').read_model_path)
-        self.corrupted_model.connect()
+        # self.corrupted_model = DQN(environment_component='Environment',
+        #                            read_model_path= self.original_configuration.get_component('Model').read_model_path)
+        self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model)
 
         # model_component.read_model_path = read_model_file
 
