@@ -223,16 +223,27 @@ class FaultInjection:
                         range(len(corrupt_layer)),
                     )
                 )
-
+                
                 for inj in inj_list:
-                    corrupt_idx = tuple(
-                        [
-                            corrupt_k[inj],
-                            corrupt_c[inj],
-                            # corrupt_kH[inj],
-                            # corrupt_kW[inj],
-                        ]
-                     )
+                    if isinstance(layer, torch.nn.Conv2d):
+                        corrupt_idx = tuple(
+                            [
+                                corrupt_k[inj],
+                                corrupt_c[inj],
+                                corrupt_kH[inj],
+                                corrupt_kW[inj],
+                            ]
+                        )
+                    elif isinstance(layer, torch.nn.Linear):
+                        corrupt_idx = tuple(
+                                [
+                                    corrupt_k[inj],
+                                    corrupt_c[inj],
+                                    # corrupt_kH[inj],
+                                    # corrupt_kW[inj],
+                                ]
+                            )
+                    
                     orig_value = layer.weight[corrupt_idx].item()
 
                     with torch.no_grad():
