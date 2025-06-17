@@ -1548,7 +1548,7 @@ class FI_manager(object):
         for k in range(int(self.FI_report.check_point["fault_idx"]),len(self._fault_list)):
             fault_info=self._fault_list.iloc[[k]]
             fault=fault_info.to_dict('records')
-            yield (fault, k)    
+            yield (fault, int(fault_info.index.values))    
 
     def write_reports(self):
         self.FI_report.set_fault_report(self.FI_framework.injected_fault)
