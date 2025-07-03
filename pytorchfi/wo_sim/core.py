@@ -164,7 +164,6 @@ class FaultInjection:
                 )
                 for i in subHandles:
                     handles.append(i)
-
         return handles
 
     def declare_weight_fault_injection(self, **kwargs):
@@ -386,8 +385,9 @@ class FaultInjection:
 
         if kwargs:
             if "function" in kwargs:
-                logger.info(extra=extra, msg="Declaring Custom Function")
+                print("Declaring Custom Function")
                 custom_injection, injection_function = True, kwargs.get("function")
+                print(f'injection_function: {injection_function}')
             else:
                 logger.info(extra=extra, msg="Declaring Specified Fault Injector")
                 self.corrupt_value = kwargs.get("value", [])
@@ -405,16 +405,16 @@ class FaultInjection:
             )
         else:
             raise ValueError("Please specify an injection or injection function")
-
+        # print(self.corrupt_batch)
         self.check_bounds(
             self.corrupt_batch,
             self.corrupt_layer,
             self.corrupt_dim,
         )
-
-        self.corrupted_model = copy.deepcopy(self.original_model)
+        self.corrupted_model =  copy.deepcopy(self.original_configuration.controller._model)
+        # print(dir(self.original_configuration.controller._model))
         handles_neurons = self._traverse_model_set_hooks_neurons(
-            self.corrupted_model,
+            self.original_configuration.controller._model._sb3model.policy.q_net,
             self._inj_layer_types,
             custom_injection,
             injection_function,
@@ -435,15 +435,16 @@ class FaultInjection:
             raise AssertionError("Injection location missing values.")
 
         logger.info(extra=extra, msg="Checking bounds before runtime")
-        for i in range(len(batch)):
+        for i in batch:
             self.assert_injection_bounds(i)
 
     def assert_injection_bounds(self, index: int):
         if index < 0:
             raise AssertionError(f"Invalid injection index: {index}")
         if self.corrupt_batch[index] >= self.batch_size:
+            
             raise AssertionError(
-                f"{self.corrupt_batch[index]} < {self.batch_size()}: Invalid batch element!"
+                f"{self.corrupt_batch[index]} < {self.batch_size}: Invalid batch element!"
             )
         if self.corrupt_layer[index] >= len(self.output_size):
             raise AssertionError(
@@ -475,7 +476,7 @@ class FaultInjection:
         logger.info(extra=extra, msg=f"Finished checking bounds on inj '{index}'")
 
     def _set_value(self, module, input_val, output):
-        logger.info(extra=extra, msg=
+        print(
             f"Processing hook of Layer {self.current_layer}: {self.layers_type[self.current_layer]}"
         )
         inj_list = list(

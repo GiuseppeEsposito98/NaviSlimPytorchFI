@@ -3,7 +3,7 @@
 import logging
 import random
 import struct
-
+import sys
 import torch
 
 from pytorchfi.wo_sim import core
@@ -218,7 +218,6 @@ class single_bit_flip_func(core.FaultInjection):
 
         # Generate injection mask for bit flip
         injmask = 2 ** bit_pos
-
         data_32bit = orig_data.view(torch.int32)
         corrupt_32bit = torch.bitwise_xor(data_32bit,injmask.type(torch.int32))
         corrupt_val = corrupt_32bit.view(torch.float)
@@ -337,7 +336,6 @@ class single_bit_flip_func(core.FaultInjection):
         bit_flip_pos = self.get_conv_max(0)
         logger.info(extra=extra, msg=f"Current layer: {self.current_layer}")
         #logger.info(extra=extra, msg=f"Range_max: {range_max}")
-        
         if type(corrupt_conv_set) is list:
             inj_list = list(
                 filter(
@@ -386,9 +384,8 @@ class single_bit_flip_func(core.FaultInjection):
     def single_bit_flip_across_batch_tensor(self, module, input_val, output):
         corrupt_conv_set = self.corrupt_layer
         bit_flip_pos = self.get_conv_max(0)
-        logger.info(extra=extra, msg=f"Current layer: {self.current_layer}")
-        #logger.info(extra=extra, msg=f"Range_max: {range_max}")
         
+        #logger.info(extra=extra, msg=f"Range_max: {range_max}")
         if type(corrupt_conv_set) is list:
             inj_list = list(
                 filter(
@@ -424,6 +421,7 @@ class single_bit_flip_func(core.FaultInjection):
         else:
             if self.current_layer == corrupt_conv_set:
                 dim=len(list(output.size()))
+                print(f'dim: {dim}')
                 indices_dim0 = torch.tensor(self.corrupt_batch) # batch
                 indices_dim1 = torch.tensor(self.corrupt_dim[0]) # channel
                 if(dim>2):
@@ -435,10 +433,11 @@ class single_bit_flip_func(core.FaultInjection):
                 else:
                     prev_value = output[i, indices_dim1]
                 rand_bit = torch.tensor([bit_flip_pos],device=output.device.type)
-
+                print(rand_bit)
                 logger.info(extra=extra, msg=f"Random Bit: {bit_flip_pos}")
 
                 new_value = self._bit_flip_value(prev_value, rand_bit)
+                print(new_value)
                 if dim>2:
                     output[i, indices_dim1, indices_dim2, indices_dim3] = new_value
                 else:
