@@ -545,21 +545,32 @@ def generate_error_list_neurons_rand(pfi_model:FaultInjection,layer=-1, ber=0.00
     dim = pfi_model.get_layer_dim(layer)
     shape = pfi_model.get_layer_shape(layer)
 
-    dim1_shape = shape[1]
-    dim2_shape = shape[2]
-    dim3_shape = shape[3]
+    dim3_shape=1
+    dim2_shape=1
+    print(shape)
+    if len(shape) == 4:
+        dim1_shape = shape[1]
+        dim2_shape = shape[2]
+        dim3_shape = shape[3]
+    else:
+        dim1_shape = shape[1]
+        # dim2_shape = shape[2]
 
     corr_neurons = math.ceil(((dim1_shape*dim2_shape*dim3_shape) * ber))
+
     
     finished = False
     print(f'Number of injections: {corr_neurons}')
     while not finished:
-
-        dim1_rand = random.randint(0,dim1_shape-1)
-        dim2_rand = random.randint(0,dim2_shape-1)
-        dim3_rand = random.randint(0,dim3_shape-1)
+        if len(shape) == 4:
+            dim1_rand = random.randint(0,dim1_shape-1)
+            dim2_rand = random.randint(0,dim2_shape-1)
+            dim3_rand = random.randint(0,dim3_shape-1)
+            single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
+        else:
+            dim1_rand = random.randint(0,dim1_shape-1)
+            single_location =  (layer, dim1_rand)
         
-        single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
         if single_location not in locations:
             locations.append(single_location)
 
@@ -582,34 +593,29 @@ def generate_error_list_neurons_lyrs(pfi_model:FaultInjection,layer_i=-1,layer_n
         dim = pfi_model.get_layer_dim(layer)
         shape = pfi_model.get_layer_shape(layer)
 
-        dim1_shape = shape[1]
-        dim2_shape = shape[2]
-        dim3_shape = shape[3]
+        dim3_shape=1
+        dim2_shape=1
+        if len(shape) == 4:
+            dim1_shape = shape[1]
+            dim2_shape = shape[2]
+            dim3_shape = shape[3]
+        else:
+            dim1_shape = shape[1]
 
         corr_neurons = math.ceil(((dim1_shape*dim2_shape*dim3_shape) * ber))
         
         finished = False
         print(f'Number of injections: {corr_neurons}')
-        # fault_info[layer] = {
-
-        # }
-        # while not finished:
-
-        #     dim1_rand = random.randint(0,dim1_shape-1)
-        #     dim2_rand = random.randint(0,dim2_shape-1)
-        #     dim3_rand = random.randint(0,dim3_shape-1)
-            
-        #     single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
-        #     if single_location not in locations:
-        #         locations.append(single_location)
-        #         if len(locations) == corr_neurons:
-        #             finished = True
+        
         for _ in range(corr_neurons):
-            dim1_rand = random.randint(0,dim1_shape-1)
-            dim2_rand = random.randint(0,dim2_shape-1)
-            dim3_rand = random.randint(0,dim3_shape-1)
-            
-            single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
+            if len(shape) == 4:
+                dim1_rand = random.randint(0,dim1_shape-1)
+                dim2_rand = random.randint(0,dim2_shape-1)
+                dim3_rand = random.randint(0,dim3_shape-1)
+                single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
+            else:
+                dim1_rand = random.randint(0,dim1_shape-1)
+                single_location =  (layer, dim1_rand)
 
             locations.append(single_location)
 
@@ -1474,17 +1480,28 @@ class FI_framework(object):
 
         #print(locations)
         #(layer, C, H, W) = random_neuron_location(self.pfi_model)
-        random_layers, random_c, random_h, random_w = map(list, zip(*locations))
-        print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)} {len(random_h)} {len(random_w)}")
-        #print(batch_order, random_layers, random_c, random_h, random_w)
-        self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
-            layer_num=random_layers,
-            batch=batch_order,
-            dim1=random_c,
-            dim2=random_h,
-            dim3=random_w,
-            function=self.pfi_model.single_bit_flip_across_batch_tensor,
-        )
+        if len(locations[0]) > 2:
+            random_layers, random_c, random_h, random_w = map(list, zip(*locations))
+            print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)} {len(random_h)} {len(random_w)}")
+            #print(batch_order, random_layers, random_c, random_h, random_w)
+            self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+                layer_num=random_layers,
+                batch=batch_order,
+                dim1=random_c,
+                dim2=random_h,
+                dim3=random_w,
+                function=self.pfi_model.single_bit_flip_across_batch_tensor,
+            )
+        else:
+            random_layers, random_c= map(list, zip(*locations))
+            print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)}")
+            #print(batch_order, random_layers, random_c, random_h, random_w)
+            self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+                layer_num=random_layers,
+                batch=batch_order,
+                dim1=random_c,
+                function=self.pfi_model.single_bit_flip_across_batch_tensor,
+            )
         # for key in fault_info:
         #     self.log_msg=f"Fault=layer:{fault_info[key]['layer']}, tot_blocks:{fault_info[key]['tot_blocks']}, faulty_blocks:{fault_info[key]['faulty_blocks']}, faulty_neuron:{fault_info[key]['faulty_neuron']}, bit_loc:{bit_faulty_pos}, "
         #     logger.info(self.log_msg)
@@ -1515,18 +1532,28 @@ class FI_framework(object):
 
         #print(locations)
         #(layer, C, H, W) = random_neuron_location(self.pfi_model)
-        random_layers, random_c, random_h, random_w = map(list, zip(*locations))
-        print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)} {len(random_h)} {len(random_w)}")
-        #print(batch_order, random_layers, random_c, random_h, random_w)
-        
-        self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
-            layer_num=random_layers,
-            batch=batch_order,
-            dim1=random_c,
-            dim2=random_h,
-            dim3=random_w,
-            function=self.pfi_model.single_bit_flip_across_batch_tensor,
-        )
+        if len(locations[0]) > 2:
+            random_layers, random_c, random_h, random_w = map(list, zip(*locations))
+            print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)} {len(random_h)} {len(random_w)}")
+            #print(batch_order, random_layers, random_c, random_h, random_w)
+            self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+                layer_num=random_layers,
+                batch=batch_order,
+                dim1=random_c,
+                dim2=random_h,
+                dim3=random_w,
+                function=self.pfi_model.single_bit_flip_across_batch_tensor,
+            )
+        else:
+            random_layers, random_c= map(list, zip(*locations))
+            print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)}")
+            #print(batch_order, random_layers, random_c, random_h, random_w)
+            self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+                layer_num=random_layers,
+                batch=batch_order,
+                dim1=random_c,
+                function=self.pfi_model.single_bit_flip_across_batch_tensor,
+            )
         # for key in fault_info:
         self.log_msg=f"layer: {layer}, ber: {ber} bit_loc:{bit_faulty_pos}, "
         # logger.info(self.log_msg, extra=extra)

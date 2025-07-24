@@ -406,11 +406,12 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
-        self.check_bounds(
-            self.corrupt_batch,
-            self.corrupt_layer,
-            self.corrupt_dim,
-        )
+        if self.corrupt_dim[2] != []:
+            self.check_bounds(
+                self.corrupt_batch,
+                self.corrupt_layer,
+                self.corrupt_dim,
+            )
         
         self.corrupted_model =  copy.deepcopy(self.original_configuration.controller._model)
         # print(dir(self.original_configuration.controller._model))
