@@ -371,7 +371,8 @@ def generate_fault_list_sbfm_fails(path,pfi_model:FaultInjection, **kwargs):
     return(f_list)
 
 
-def generate_fault_neurons_tailing(path,pfi_model:FaultInjection, **kwargs): 
+def generate_fault_neurons_tailing(path,pfi_model:FaultInjection, **kwargs):
+    fault_list=[]   
     fault_dict={}
     f_list=pd.DataFrame()             
     if kwargs:                               
@@ -379,22 +380,57 @@ def generate_fault_neurons_tailing(path,pfi_model:FaultInjection, **kwargs):
         if not os.path.exists(os.path.join(path,fault_list_file)):                  
             # f_list=pd.DataFrame(columns=['layer','kernel','channel','height','width','bitmask'])     
             Num_trials=kwargs.get('trials') 
-            bers = kwargs.get('bers')    
+            tail_bloc_y=kwargs.get('size_tail_y') 
+            tail_bloc_x=kwargs.get('size_tail_x') 
 
-            for ber in bers:
-                fault_dict['ber'] = ber
-                for bit_pos_fault in range(19,32):
-                    for _ in (range(Num_trials)):
-                        fault_dict['bit_faulty_pos'] = bit_pos_fault
-                        new_row=pd.DataFrame(fault_dict, index=[0])
-                        f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+            layer=kwargs.get('layers')
+            pfi_model.print_pytorchfi_layer_summary()            
+            print(pfi_model.get_total_layers())
+
+            # fault_dict['ber']=kwargs.get('BER')
+            fault_dict['layer_start']=layer[0]
+            if len(layer)>1:
+                fault_dict['layer_stop']=layer[1]
+            else:
+                fault_dict['layer_stop']=layer[0]
+
+           
+            #fault_dict['neuron_fault_rate']=kwargs.get('neuron_fault_rate')
+            
+            fault_dict['size_tail_y']=tail_bloc_y
+            fault_dict['size_tail_x']=tail_bloc_x
+
+            b_rate_delta=kwargs.get('block_fault_rate_delta')
+            b_rate_steps=kwargs.get('block_fault_rate_steps')
+
+            n_rate_delta=kwargs.get('neuron_fault_rate_delta')
+            n_rate_steps=kwargs.get('neuron_fault_rate_steps')
+            
+            if(b_rate_steps==None or b_rate_delta==None):
+                b_rate_steps = 1
+                b_rate_delta=0.01
+
+            if(n_rate_steps==None or n_rate_delta==None):
+                n_rate_steps = 1
+                n_rate_delta=0.01
+
+            for bfr in range(1,b_rate_steps+1):
+                fault_dict['block_fault_rate']=bfr*b_rate_delta
+                for nfr in range(1,n_rate_steps+1):
+                    n_rate=nfr*n_rate_delta
+                    fault_dict['neuron_fault_rate']=n_rate
+                    for bit_pos_fault in range(19,32):
+                        for _ in (range(Num_trials)):  
+                            fault_dict['bit_faulty_pos']=bit_pos_fault                                                                      
+                            new_row=pd.DataFrame(fault_dict, index=[0])
+                            f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)     
 
             f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
         else:
             f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
     return(f_list)
 
-def generate_fault_neurons_rand(path,pfi_model:FaultInjection, **kwargs): 
+def generate_fault_neurons_rand_single(path,pfi_model:FaultInjection, **kwargs): 
     fault_dict={}
     f_list=pd.DataFrame()             
     if kwargs:                               
@@ -404,15 +440,59 @@ def generate_fault_neurons_rand(path,pfi_model:FaultInjection, **kwargs):
             Num_trials=kwargs.get('trials') 
             bers = kwargs.get('bers')    
             layer = kwargs.get('layer')    
+            bit_faulty_pos = kwargs.get('bit_faulty_pos')
 
             fault_dict['layer'] = layer
             for ber in bers:
                 fault_dict['ber'] = ber
                 # for bit_pos_fault in range(19,32):
                 for _ in (range(Num_trials)):
-                    fault_dict['bit_faulty_pos'] = 30
-                    new_row=pd.DataFrame(fault_dict, index=[0])
-                    f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+                    if bit_faulty_pos:
+                        for bit_loc in range(19,31):
+                            fault_dict['bit_faulty_pos'] = bit_loc
+                            new_row=pd.DataFrame(fault_dict, index=[0])
+                            f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+                    else:
+                        fault_dict['bit_faulty_pos'] = bit_faulty_pos
+                        new_row=pd.DataFrame(fault_dict, index=[0])
+                        f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+
+            f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
+        else:
+            f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
+    return(f_list)
+
+def generate_fault_neurons_rand_multiple(path,pfi_model:FaultInjection, **kwargs): 
+    fault_dict={}
+    f_list=pd.DataFrame()             
+    if kwargs:                               
+        fault_list_file=kwargs.get('f_list_file')
+        if not os.path.exists(os.path.join(path,fault_list_file)):                  
+            # f_list=pd.DataFrame(columns=['layer','kernel','channel','height','width','bitmask'])     
+            Num_trials=kwargs.get('trials') 
+            bers = kwargs.get('bers')    
+            layers = kwargs.get('layers')    
+            bit_faulty_pos = kwargs.get('bit_faulty_pos')
+
+            fault_dict['layer_start']=layers[0]
+            if len(layers)>1:
+                fault_dict['layer_stop']=layers[1]
+            else:
+                fault_dict['layer_stop']=layers[0]
+
+            for ber in bers:
+                fault_dict['ber'] = ber
+                # for bit_pos_fault in range(19,32):
+                for _ in (range(Num_trials)):
+                    if bit_faulty_pos:
+                        for bit_loc in range(19,31):
+                            fault_dict['bit_faulty_pos'] = bit_loc
+                            new_row=pd.DataFrame(fault_dict, index=[0])
+                            f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+                    else:
+                        fault_dict['bit_faulty_pos'] = bit_faulty_pos
+                        new_row=pd.DataFrame(fault_dict, index=[0])
+                        f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
 
             f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
         else:
@@ -472,7 +552,6 @@ def generate_error_list_neurons_rand(pfi_model:FaultInjection,layer=-1, ber=0.00
     corr_neurons = math.ceil(((dim1_shape*dim2_shape*dim3_shape) * ber))
     
     finished = False
-    num_locations = 0
     print(f'Number of injections: {corr_neurons}')
     while not finished:
 
@@ -483,13 +562,62 @@ def generate_error_list_neurons_rand(pfi_model:FaultInjection,layer=-1, ber=0.00
         single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
         if single_location not in locations:
             locations.append(single_location)
-            num_locations += 1
 
-            if num_locations >= corr_neurons:
+            if len(locations) >= corr_neurons:
                 finished = True
 
     batch_order = [0 for _ in range(corr_neurons)]
     return locations, batch_order, 
+
+def generate_error_list_neurons_lyrs(pfi_model:FaultInjection,layer_i=-1,layer_n=-1, ber=0.0001):
+    locations = list()
+    batch_order = list()
+    fault_info = dict()
+    if layer_i == -1:
+        layer_i = random.randint(0, pfi_model.get_total_layers() - 1)
+    if layer_n == -1:
+       layer_n = layer_i
+
+    for layer in range(layer_i, layer_n):
+        dim = pfi_model.get_layer_dim(layer)
+        shape = pfi_model.get_layer_shape(layer)
+
+        dim1_shape = shape[1]
+        dim2_shape = shape[2]
+        dim3_shape = shape[3]
+
+        corr_neurons = math.ceil(((dim1_shape*dim2_shape*dim3_shape) * ber))
+        
+        finished = False
+        print(f'Number of injections: {corr_neurons}')
+        # fault_info[layer] = {
+
+        # }
+        # while not finished:
+
+        #     dim1_rand = random.randint(0,dim1_shape-1)
+        #     dim2_rand = random.randint(0,dim2_shape-1)
+        #     dim3_rand = random.randint(0,dim3_shape-1)
+            
+        #     single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
+        #     if single_location not in locations:
+        #         locations.append(single_location)
+        #         if len(locations) == corr_neurons:
+        #             finished = True
+        for _ in range(corr_neurons):
+            dim1_rand = random.randint(0,dim1_shape-1)
+            dim2_rand = random.randint(0,dim2_shape-1)
+            dim3_rand = random.randint(0,dim3_shape-1)
+            
+            single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
+
+            locations.append(single_location)
+
+        batch_orderx = [0 for _ in range(corr_neurons)]
+
+        batch_order.extend(batch_orderx)
+
+    return locations, batch_order,
 
 def generate_error_list_neurons(pfi_model:FaultInjection,layer=-1,channel=-1,row=-1,col=-1):
     if layer == -1:
@@ -1322,6 +1450,46 @@ class FI_framework(object):
                         use_cuda=use_cuda,
                         )
         self.pfi_model.print_pytorchfi_layer_summary()
+
+    def bit_flip_err_neuron_lyrs(self,fault):
+        
+        print(fault[0])
+        layer_start=fault[0]['layer_start']
+        layer_stop=fault[0]['layer_stop']
+        ber=fault[0]['ber']
+        bit_faulty_pos=fault[0]['bit_faulty_pos']
+
+        (locations,batch_order)=generate_error_list_neurons_lyrs(self.pfi_model,
+                                                                  layer_i=layer_start,
+                                                                  layer_n=layer_stop,
+                                                                  ber = ber)        
+        
+        #logger.info()
+
+        # this weird list is andatory for the original fasult injector 
+        #self.pfi_model.set_conv_max([255.0 for _ in range(self.pfi_model.get_total_layers())])
+
+        # here I changed it in order to inject bit-flips, more representative
+        self.pfi_model.set_conv_max([bit_faulty_pos])
+
+        #print(locations)
+        #(layer, C, H, W) = random_neuron_location(self.pfi_model)
+        random_layers, random_c, random_h, random_w = map(list, zip(*locations))
+        print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)} {len(random_h)} {len(random_w)}")
+        #print(batch_order, random_layers, random_c, random_h, random_w)
+        self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+            layer_num=random_layers,
+            batch=batch_order,
+            dim1=random_c,
+            dim2=random_h,
+            dim3=random_w,
+            function=self.pfi_model.single_bit_flip_across_batch_tensor,
+        )
+        # for key in fault_info:
+        #     self.log_msg=f"Fault=layer:{fault_info[key]['layer']}, tot_blocks:{fault_info[key]['tot_blocks']}, faulty_blocks:{fault_info[key]['faulty_blocks']}, faulty_neuron:{fault_info[key]['faulty_neuron']}, bit_loc:{bit_faulty_pos}, "
+        #     logger.info(self.log_msg)
+        # self.log_msg=""
+        self.faulty_model
     
     def bit_flip_err_neuron(self,fault):
         
@@ -1555,8 +1723,11 @@ class FI_manager(object):
             elif(kwargs.get('flist_mode')=='neurons_ber'):
                 self._fault_list=generate_fault_neurons_tailing(self.log_path,self.pfi_model,**kwargs)
             
-            elif(kwargs.get('flist_mode')=='neurons'):
-                self._fault_list=generate_fault_neurons_rand(self.log_path,self.pfi_model,**kwargs)
+            elif(kwargs.get('flist_mode')=='neurons_rand_single_layer'):
+                self._fault_list=generate_fault_neurons_rand_single(self.log_path,self.pfi_model,**kwargs)
+
+            elif(kwargs.get('flist_mode')=='neurons_rand_multiple_layer'):
+                self._fault_list=generate_fault_neurons_rand_multiple(self.log_path,self.pfi_model,**kwargs)
 
             else:
                 raise ValueError("The fault list can't be generated in this configuration")

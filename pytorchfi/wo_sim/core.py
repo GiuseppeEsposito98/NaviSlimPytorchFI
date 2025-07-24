@@ -405,16 +405,17 @@ class FaultInjection:
             )
         else:
             raise ValueError("Please specify an injection or injection function")
-        # print(self.corrupt_batch)
+
         self.check_bounds(
             self.corrupt_batch,
             self.corrupt_layer,
             self.corrupt_dim,
         )
+        
         self.corrupted_model =  copy.deepcopy(self.original_configuration.controller._model)
         # print(dir(self.original_configuration.controller._model))
         handles_neurons = self._traverse_model_set_hooks_neurons(
-            self.original_configuration.controller._model._sb3model.policy.q_net,
+            self.corrupted_model._sb3model.policy.q_net,
             self._inj_layer_types,
             custom_injection,
             injection_function,
