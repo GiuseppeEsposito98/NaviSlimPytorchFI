@@ -20,8 +20,6 @@ setup(
     packages=find_packages(exclude=('tests', 'scripts', 'Demo')),
     python_requires='>=3.7',
     install_requires=[
-        'torch==2.4.1',
-        'torchvision>=0.13.2',
         'numpy',
         'pyyaml>=5.4.1',
         'scipy',

@@ -72,8 +72,6 @@ class FaultInjection:
             'img':torch.randn(self._input_shapes[0], dtype=configuration.controller_dtype, device=device)
         }
 
-        print(configuration.controller_dtype)
-
         with torch.no_grad():
             self.original_configuration.controller._model.predict(_dummy_input)
 
@@ -203,18 +201,15 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
-        # from iasl_experimental.reinforcement_learning.sb3models.dqn import DQN
-
-        # self.corrupted_model = DQN(environment_component='Environment',
-        #                            read_model_path= self.original_configuration.get_component('Model').read_model_path)
-        self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model)
-
+        # self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model)
+        self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model._sb3model.policy.q_net)
+        
         # model_component.read_model_path = read_model_file
 
         # self.corrupted_controller.connect()
         current_weight_layer = 0
 
-        for layer in self.corrupted_model._sb3model.policy.q_net.modules():
+        for layer in self.corrupted_model.modules():
             if isinstance(layer, tuple(self._inj_layer_types)):
                 inj_list = list(
                     filter(
