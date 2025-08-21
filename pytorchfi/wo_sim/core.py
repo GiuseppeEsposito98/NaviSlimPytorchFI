@@ -408,10 +408,10 @@ class FaultInjection:
                 self.corrupt_dim,
             )
         
-        self.corrupted_model =  copy.deepcopy(self.original_configuration.controller._model)
+        self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model._sb3model.policy.q_net)
         # print(dir(self.original_configuration.controller._model))
         handles_neurons = self._traverse_model_set_hooks_neurons(
-            self.corrupted_model._sb3model.policy.q_net,
+            self.corrupted_model,
             self._inj_layer_types,
             custom_injection,
             injection_function,
