@@ -13,9 +13,6 @@ import sys
 # caution: path[0] is reserved for script path (or '' in REPL)
 #sys.path.insert(1, 'pytorchfi')
 import torch
-import numpy as np
-import pytorchfi.wo_sim.core as core
-from pytorchfi.util import random_value
 from pytorchfi.wo_sim.core import *
 from pytorchfi.wo_sim.neuron_error_models import *
 

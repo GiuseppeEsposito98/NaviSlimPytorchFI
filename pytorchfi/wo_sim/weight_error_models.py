@@ -2,7 +2,7 @@
 
 import random
 import struct
-import pytorchfi.wo_sim.core as core
+import pytorchfi.wo_sim.core_wo_sim as core_wo_sim
 from pytorchfi.util import random_value
 
 _bf_inj_w_mask=0
@@ -45,7 +45,7 @@ def random_weight_inj(
     )
 
 
-def zero_func_rand_weight(pfi: core.FaultInjection):
+def zero_func_rand_weight(pfi: core_wo_sim.FaultInjection):
     layer, k, c_in, kH, kW = random_weight_location(pfi)
     return pfi.declare_weight_fault_injection(
         function=_zero_rand_weight, layer_num=layer, k=k, dim1=c_in, dim2=kH, dim3=kW
