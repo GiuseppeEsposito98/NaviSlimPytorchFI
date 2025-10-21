@@ -10,7 +10,8 @@ import torch.nn as nn
 import numpy as np
 import logging 
 logging
- 
+from NaviAPPFI.Hardening.FQ_ViT.models.ptq.layers import QConv2d, QLinear    
+
 
 logger=logging.getLogger(__name__) 
 extra = {'clientip': '127.0.0.1',
@@ -114,7 +115,7 @@ class FaultInjection:
         weights_shape = []
         for layer in model.children():
             # leaf node
-            if list(layer.children()) == []:
+            if isinstance(layer, (QConv2d, QLinear, torch.nn.Conv2d, torch.nn.Linear)):
                 if "all" in layer_types:
                     handles.append(layer.register_forward_hook(self._save_output_size))
                 else:
@@ -146,7 +147,7 @@ class FaultInjection:
         handles = []
         for layer in model.children():
             # leaf node
-            if list(layer.children()) == []:
+            if isinstance(layer, (QConv2d, QLinear, torch.nn.Conv2d, torch.nn.Linear)):
                 if "all" in layer_types:
                     hook = injFunc if customInj else self._set_value
                     handles.append(layer.register_forward_hook(hook))
@@ -219,7 +220,7 @@ class FaultInjection:
                 )
                 
                 for inj in inj_list:
-                    if isinstance(layer, torch.nn.Conv2d):
+                    if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, QConv2d):
                         corrupt_idx = tuple(
                             [
                                 corrupt_k[inj],
@@ -228,7 +229,7 @@ class FaultInjection:
                                 corrupt_kW[inj],
                             ]
                         )
-                    elif isinstance(layer, torch.nn.Linear):
+                    elif isinstance(layer, torch.nn.Linear) or isinstance(layer, QLinear):
                         corrupt_idx = tuple(
                                 [
                                     corrupt_k[inj],
@@ -280,7 +281,7 @@ class FaultInjection:
         current_weight_layer = 0
         induced_errors = list()
         for layer in self.corrupted_model.modules():
-            if isinstance(layer, torch.nn.modules.conv.Conv2d):
+            if isinstance(layer, torch.nn.modules.conv.Conv2d) or isinstance(layer, QConv2d):
                 fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
                 corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel','row','col']], dtype=int)
                 for idxs in corrupt_idxs:
@@ -294,7 +295,7 @@ class FaultInjection:
                             induced_errors.append(induced_error)
                 current_weight_layer += 1
                 
-            elif isinstance(layer, torch.nn.modules.linear.Linear):
+            elif isinstance(layer, torch.nn.modules.linear.Linear) or isinstance(layer, QLinear):
                 fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
                 corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel']], dtype=int)
                 for idxs in corrupt_idxs:
@@ -338,7 +339,7 @@ class FaultInjection:
         induced_errors = list()
         for layer in self.corrupted_model.modules():
 
-            if isinstance(layer, torch.nn.modules.conv.Conv2d):
+            if isinstance(layer, torch.nn.modules.conv.Conv2d) or isinstance(layer, QConv2d):
                 fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
                 corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel','row','col']], dtype=int)
                 bitmasks = np.array(fault_description_per_layer[['bitmask']], dtype=int)
@@ -354,7 +355,7 @@ class FaultInjection:
                             induced_errors.append(induced_error)
                 current_weight_layer += 1
                 
-            elif isinstance(layer, torch.nn.modules.linear.Linear):
+            elif isinstance(layer, torch.nn.modules.linear.Linear) or isinstance(layer, QLinear):
                 fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
                 corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel']], dtype=int)
                 bitmasks = np.array(fault_description_per_layer[['bitmask']], dtype=int)
@@ -547,6 +548,7 @@ class FaultInjection:
         return self.layers_type[layer_num]
 
     def get_layer_dim(self, layer_num):
+        print(self.layers_dim)
         return self.layers_dim[layer_num]
 
     def get_layer_shape(self, layer_num):
