@@ -438,7 +438,7 @@ def generate_fault_neurons_rand_single(path,pfi_model:FaultInjection, **kwargs):
             Num_trials=kwargs.get('trials') 
             bers = kwargs.get('bers')    
             layer = kwargs.get('layer')    
-            bit_faulty_pos = kwargs.get('bit_faulty_pos')
+            bit_faulty_pos = kwargs.get('bit_faulty_pos', None)
 
             fault_dict['layer'] = layer
             for ber in bers:
