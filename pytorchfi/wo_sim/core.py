@@ -625,5 +625,5 @@ class FaultInjection:
             + "\n"
         )
 
-        logger.info(extra=extra, msg=summary_str)
+        print(summary_str)
         return summary_str
