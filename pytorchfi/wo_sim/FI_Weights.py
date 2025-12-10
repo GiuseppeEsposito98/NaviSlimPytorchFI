@@ -445,7 +445,7 @@ def generate_fault_neurons_rand_single(path,pfi_model:FaultInjection, **kwargs):
                 fault_dict['ber'] = ber
                 # for bit_pos_fault in range(19,32):
                 for _ in (range(Num_trials)):
-                    if bit_faulty_pos:
+                    if not bit_faulty_pos:
                         for bit_loc in range(19,31):
                             fault_dict['bit_faulty_pos'] = bit_loc
                             new_row=pd.DataFrame(fault_dict, index=[0])
