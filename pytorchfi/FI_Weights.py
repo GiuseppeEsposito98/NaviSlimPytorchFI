@@ -13,12 +13,10 @@ import sys
 # caution: path[0] is reserved for script path (or '' in REPL)
 #sys.path.insert(1, 'pytorchfi')
 import torch
-from pytorchfi.newest.core import *
-from pytorchfi.newest.neuron_error_models import *
+from pytorchfi.core import *
+from pytorchfi.neuron_error_models import *
 
 import logging
-import map_tool_box.NaviAPPFI.rl_utils as utils
-import map_tool_box.NaviAPPFI.utils.global_methods as gm
 # SAVERS - save observations and states at each step
 
 logger=logging.getLogger(__name__) 
