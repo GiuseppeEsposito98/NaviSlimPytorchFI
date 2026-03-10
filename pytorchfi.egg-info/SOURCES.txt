@@ -1,12 +1,8 @@
 LICENSE
 README.md
 setup.py
-pytorchfi/FI_Weights.py
 pytorchfi/__init__.py
-pytorchfi/core.py
-pytorchfi/neuron_error_models.py
 pytorchfi/util.py
-pytorchfi/weight_error_models.py
 pytorchfi.egg-info/PKG-INFO
 pytorchfi.egg-info/SOURCES.txt
 pytorchfi.egg-info/dependency_links.txt

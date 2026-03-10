@@ -1,5 +1,3 @@
-torch==2.4.1
-torchvision>=0.13.2
 numpy
 pyyaml>=5.4.1
 scipy

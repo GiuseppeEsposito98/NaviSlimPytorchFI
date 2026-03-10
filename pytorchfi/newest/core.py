@@ -21,7 +21,7 @@ logger.info(extra=extra, msg="Client connected")
 class FaultInjection:
     def __init__(
         self,
-        configuration,
+        model,
         batch_size: int,
         input_shape: List[int] = None,
         layer_types=None,
@@ -33,7 +33,7 @@ class FaultInjection:
             layer_types = [nn.Conv2d]
         logging.basicConfig(format="%(asctime)-15s %(clientip)s %(user)-8s %(message)s")
 
-        self.original_configuration = configuration
+        self.original_model = model
         self.output_size = []
         self.layers_type = []
         self.layers_dim = []
@@ -44,7 +44,7 @@ class FaultInjection:
         self._input_shapes = input_shape
         self._inj_layer_types = layer_types
 
-        self.corrupted_controller = None
+        self.corrupted_model = None
         self.current_layer = 0
         self.handles = []
         self.corrupt_batch = []
@@ -52,7 +52,7 @@ class FaultInjection:
         self.corrupt_dim = [[], [], []]  # C, H, W
         self.corrupt_value = []
 
-        self.use_cuda = kwargs.get("use_cuda", next(configuration.controller._model._sb3model.policy.q_net.parameters()).is_cuda)
+        self.use_cuda = kwargs.get("use_cuda", next(model.sb3model.q_net.parameters()).is_cuda)
         if not isinstance(input_shape, list):
             raise AssertionError("Error: Input shape must be provided as a list.")
         if not (isinstance(batch_size, int) and batch_size >= 1):
@@ -61,20 +61,20 @@ class FaultInjection:
             raise AssertionError("Error: At least one layer type must be selected.")
 
         handles, _shapes, self.weights_size = self._traverse_model_set_hooks(
-            self.original_configuration.controller._model._sb3model.policy.q_net, self._inj_layer_types
+            self.original_model.sb3model.q_net, self._inj_layer_types
         )
  
         dummy_shape = (1, *self._input_shapes)  # profiling only needs one batch element
-        configuration.controller_dtype = next(configuration.controller._model._sb3model.policy.q_net.parameters()).dtype
+        model.controller_dtype = next(model.sb3model.q_net.parameters()).dtype
         device = "cuda" if self.use_cuda else None
 
         _dummy_input = {
-            'vec':torch.randn(self._input_shapes[1], dtype=configuration.controller_dtype, device=device),
-            'img':torch.randn(self._input_shapes[0], dtype=configuration.controller_dtype, device=device)
+            'vec':torch.randn(self._input_shapes[1], dtype=model.controller_dtype, device=device),
+            'img':torch.randn(self._input_shapes[0], dtype=model.controller_dtype, device=device)
         }
 
         with torch.no_grad():
-            self.original_configuration.controller._model.predict(_dummy_input)
+            self.original_model.predict(_dummy_input)
 
         for index, _handle in enumerate(handles):
             handles[index].remove()
@@ -94,7 +94,7 @@ class FaultInjection:
 
     def reset_fault_injection(self):
         self._reset_fault_injection_state()
-        self.corrupted_controller = None
+        self.corrupted_model = None
         logger.info(extra=extra, msg="Fault injector reset.")
 
     def _reset_fault_injection_state(self):
@@ -202,12 +202,11 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
-        # self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model)
-        self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model._sb3model.policy.q_net)
+        self.corrupted_model = copy.deepcopy(self.original_model.sb3model.q_net)
         
         # model_component.read_model_path = read_model_file
 
-        # self.corrupted_controller.connect()
+        # self.corrupted_model.connect()
         current_weight_layer = 0
 
         for layer in self.corrupted_model.modules():
@@ -409,7 +408,7 @@ class FaultInjection:
                 self.corrupt_dim,
             )
         
-        self.corrupted_model = copy.deepcopy(self.original_configuration.controller._model._sb3model.policy.q_net)
+        self.corrupted_model = copy.deepcopy(self.original_model.sb3model.q_net)
         # print(dir(self.original_configuration.controller._model))
         handles_neurons = self._traverse_model_set_hooks_neurons(
             self.corrupted_model,
