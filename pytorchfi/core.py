@@ -10,7 +10,7 @@ import torch.nn as nn
 import numpy as np
 import logging 
 logging
-from map_tool_box.NaviAPPFI.Hardening.FQ_ViT.models.ptq.layers import QConv2d, QLinear    
+from map_tool_box.AirSimNNaviFI.Hardening.FQ_ViT.models.ptq.layers import QConv2d, QLinear    
 
 
 logger=logging.getLogger(__name__) 

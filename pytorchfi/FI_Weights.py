@@ -1190,9 +1190,9 @@ class FI_report_classifier(object):
                 # F_reward = self.Faulty['reward']
                 F_term=self.Faulty['termination_reason']
 
-                if 'goal' in F_term:
+                if 'Goal' == F_term:
                     self.F_reached_goal += 1
-                elif 'steps' in F_term:
+                elif 'MaxSteps' == F_term:
                     self.F_max_steps += 1
                 elif 'collision' in F_term:
                         self.F_collisions += 1
@@ -1209,10 +1209,10 @@ class FI_report_classifier(object):
                         Res.append('SDC')
 
                         # for episode in self.golden_run_report.keys():
-                        episodeID= f'episode_{index.split('ep')[-1]}'
+                        # episodeID= f'episode_{index.split('ep')[-1]}'
 
-                        # TODO: gestisci il caso di numero di step diversi (G_num_step, F_num_step) che tra l'altro è una cosa che capita sempre
-                        self.Full_report[episodeID] = {}
+                        # # TODO: gestisci il caso di numero di step diversi (G_num_step, F_num_step) che tra l'altro è una cosa che capita sempre
+                        # self.Full_report[episodeID] = {}
 
                         # for step in self.faulty_run_report[episodeID].keys():
                         #     if int(step.split('_')[-1]) > 0:
