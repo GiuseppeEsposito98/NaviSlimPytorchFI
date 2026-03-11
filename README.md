@@ -7,14 +7,11 @@
 
 [![codecov](https://codecov.io/gh/divadnauj-GB/pytorchfi_SC/branch/main/graph/badge.svg?token=WETJBPMAUN)](https://codecov.io/gh/divadnauj-GB/pytorchfi_SC)
 
-<p align="center">
-  <a href="#background">Background</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#code">Code</a> •
-  <a href="#contributors">Contributors</a> •
-  <a href="#citation">Citation</a> •
-  <a href="#license">License</a>
-</p>
+# Introduction
+This repo is a modified version of 
+https://github.com/pytorchfi/pytorchfi.git
+Adapted to run fault injections at the application level on the drone navigation model running on data extracted from Microsoft AirSim
+
 
 ## Background
 
@@ -24,53 +21,6 @@ An example of a use case for PyTorchFI is to simulate an error by performaing a 
 |                                              Golden Output                                               |                                       Output with Fault Injection                                        |
 | :------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------: |
 | ![](https://user-images.githubusercontent.com/7104017/85642872-7fb93980-b647-11ea-8717-8d16cb1c35b3.jpg) | ![](https://user-images.githubusercontent.com/7104017/85642867-7def7600-b647-11ea-89b9-570278c22101.jpg) |
-
-## Usage
-
-Download on PyPI [here](https://pypi.org/project/pytorchfi/), or take a look at our documentation at [pytorchfi.dev](https://pytorchfi.dev/).
-
-You can also learn more with our [interactive demo](https://colab.research.google.com/drive/1BMB4LbsTU_K_YXUFzRyfIynpGu5Yhr1Y).
-
-
-### Installing
-
-**From Pip**
-
-Install using `pip install pytorchfi`
-
-**From Source**
-
-Download this repository into your project folder.
-
-### Importing
-
-Import the entire package:
-
-```python
-import pytorchfi
-```
-
-Import a specific module:
-
-```python
-from pytorchfi import core
-```
-
-### Testing
-
-```bash
-pytest
-```
-
-## Code
-
-### Structure
-
-The main source code of PyTorchFI is held in `pytorchfi`, which carries both `core` and `error_models.py` implementations.
-
-### Formatting
-
-All python code is formatted with [black](https://black.readthedocs.io/en/stable/).
 
 ## Contributors
 
@@ -97,11 +47,3 @@ year={2020},
 pages={25-31},
 }
 ```
-
-## Funding Sources
-
-This project was funded in part by the [Applications Driving Architectures (ADA) Research Center](https://adacenter.org/), a JUMP Center co-sponsored by SRC and DARPA, and in collaboration with NVIDIA Research.
-
-## License
-
-[NCSA](https://opensource.org/licenses/NCSA) License. Copyright © 2021 [RSim Research Group](http://rsim.cs.uiuc.edu/).
