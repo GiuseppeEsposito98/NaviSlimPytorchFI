@@ -1,5 +1,6 @@
 """pytorchfi.core contains the core functionality for fault injections"""
 
+import sys
 import copy
 import logging
 import warnings
@@ -73,7 +74,7 @@ class FaultInjection:
         }
 
         with torch.no_grad():
-            self.original_model.predict(_dummy_input)
+            self.original_model.predict2(_dummy_input)
 
         for index, _handle in enumerate(handles):
             handles[index].remove()
@@ -200,15 +201,15 @@ class FaultInjection:
                 corrupt_value = kwargs.get("value", [])
         else:
             raise ValueError("Please specify an injection or injection function")
-
-        self.corrupted_model = copy.deepcopy(self.original_model.sb3model.q_net)
+        self.corrupted_model = self.original_model
+        self.corrupted_model = copy.deepcopy(self.original_model)
         
         # model_component.read_model_path = read_model_file
 
         # self.corrupted_model.connect()
         current_weight_layer = 0
 
-        for layer in self.corrupted_model.modules():
+        for layer in self.corrupted_model.sb3model.q_net.modules():
             if isinstance(layer, tuple(self._inj_layer_types)):
                 inj_list = list(
                     filter(
@@ -275,6 +276,7 @@ class FaultInjection:
         else:
             raise ValueError("Please specify an injection or injection function")
 
+        self.corrupted_model = self.original_model
         self.corrupted_model = copy.deepcopy(self.original_model)
         current_weight_layer = 0
         induced_errors = list()
@@ -331,7 +333,7 @@ class FaultInjection:
             trial = kwargs.get('trial')
         else:
             raise ValueError("Please specify an injection or injection function")
-
+        self.corrupted_model = self.original_model
         self.corrupted_model = copy.deepcopy(self.original_model)
         current_weight_layer = 0
         induced_errors = list()
@@ -407,10 +409,13 @@ class FaultInjection:
                 self.corrupt_dim,
             )
         
-        self.corrupted_model = copy.deepcopy(self.original_model.sb3model.q_net)
+        self.corrupted_model = self.original_model
+
+        self.corrupted_model.sb3model.q_net = copy.deepcopy(self.original_model.sb3model.q_net)
+        
         # print(dir(self.original_configuration.controller._model))
         handles_neurons = self._traverse_model_set_hooks_neurons(
-            self.corrupted_model,
+            self.corrupted_model.sb3model.q_net,
             self._inj_layer_types,
             custom_injection,
             injection_function,

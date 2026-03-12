@@ -1114,6 +1114,14 @@ class FI_report_classifier(object):
         # print(f"Loaded report from {file_path}:")
         # print(loaded_report)
         return(loaded_report)
+    
+    def load_detailed_report(self,log_folder):
+        
+        full_log_path = os.path.join(log_folder, 'evaluation__test.p')
+        with open(full_log_path, 'rb') as f:
+            loaded_report = pickle.load(f)
+        return loaded_report
+        
 
     def save_report(self,file_name, folder_path=None):    
         file_name_json=f"{file_name}.json"   
@@ -1123,12 +1131,21 @@ class FI_report_classifier(object):
             json.dump(self._report_dictionary,Golden_file)
 
 
-    def update_report(self,episode, num_step, termination_reason):
+    def update_report(self,episode, num_step, termination_reason, actions, obs_mean, obs_min, obs_std, max_prob, skw_prob):
         # TODO: controlla qui
         self._report_dictionary[f'ep{episode+1}']={}
         self._report_dictionary[f'ep{episode+1}']['num_step']=num_step
         self._report_dictionary[f'ep{episode+1}']['termination_reason']=termination_reason
-        #print(self._report_dictionary)
+
+        self._report_dictionary[f'ep{episode+1}']['actions']=actions
+
+        self._report_dictionary[f'ep{episode+1}']['obs_mean']=obs_mean
+        self._report_dictionary[f'ep{episode+1}']['obs_min']=obs_min
+        self._report_dictionary[f'ep{episode+1}']['obs_std']=obs_std
+
+        self._report_dictionary[f'ep{episode+1}']['max_prob']=max_prob
+        self._report_dictionary[f'ep{episode+1}']['skw_prob']=skw_prob
+
         
     def update_report_shared_dict(self,index,output,target,topk=(1,)):
         maxk=max(topk)        
@@ -1155,30 +1172,20 @@ class FI_report_classifier(object):
 
         self._golden_dictionary=self.load_report(file_name=golden_file_report, log_folder=self.log_path)
         self._FI_dictionary=self.load_report(file_name=faulty_file_report, log_folder=faulty_file_path)
-
-        # self.golden_run_report = self.load_report_41293c68fe7e15560d26ba8fa6c1bf377a7df4fd(file_name='evaluation__test', log_folder=golden_file_path)
-        # self.faulty_run_report = self.load_report_41293c68fe7e15560d26ba8fa6c1bf377a7df4fd(file_name='evaluation__test', log_folder=faulty_file_path)
-        # print(f'self.faulty_run_report: {self.faulty_run_report['episode_2'].keys()}')
+        
         self.Full_report = dict()
-        # print(self._golden_dictionary)
-        # print(self.log_path)
-        # sys.exit()
+        
         for index in self._golden_dictionary:
             self.Golden=self._golden_dictionary[index]
             G_num_step = self.Golden['num_step']
-            # G_reward = self.Golden['reward']
+            
             G_term=self.Golden['termination_reason']
-            # print(f'G_term: {G_term}')
-            # sys.exit()
             
             if 'Goal' == G_term:
                 self.G_reached_goal += 1
             elif 'MaxSteps' == G_term:
                 self.G_max_steps += 1
-            elif 'collision' == G_term:
-                self.G_collisions += 1
-            
-            # self.G_tot_reward += G_reward
+                
             self.G_tot_steps += G_num_step
 
             if index in self._FI_dictionary:
@@ -1187,15 +1194,13 @@ class FI_report_classifier(object):
                 self.Faulty=self._FI_dictionary[index]
 
                 F_num_step = self.Faulty['num_step']
-                # F_reward = self.Faulty['reward']
+                
                 F_term=self.Faulty['termination_reason']
 
                 if 'Goal' == F_term:
                     self.F_reached_goal += 1
                 elif 'MaxSteps' == F_term:
                     self.F_max_steps += 1
-                elif 'collision' in F_term:
-                        self.F_collisions += 1
                 
                 
                 if F_term == G_term:
